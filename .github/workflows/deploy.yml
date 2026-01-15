@@ -1,0 +1,66 @@
+name: Deploy Azure Infrastructure & App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Permette di lanciare il deploy manualmente
+
+env:
+  RESOURCE_GROUP: 'az-analyze-itan-rg'
+  BACKEND_PATH: './backend'
+
+jobs:
+  # JOB 1: Crea/Aggiorna Infrastruttura Azure
+  deploy-infra:
+    runs-on: ubuntu-latest
+    outputs:
+      webapp_name: ${{ steps.deploy-bicep.outputs.webAppName }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Bicep (Infrastructure)
+        id: deploy-bicep
+        uses: azure/arm-deploy@v1
+        with:
+          scope: resourcegroup
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }} # Opzionale se è nel JSON credentials
+          resourceGroupName: ${{ env.RESOURCE_GROUP }}
+          template: ./infra/main.bicep
+          parameters: location=westeurope
+
+  # JOB 2: Build & Deploy Codice Node.js
+  build-and-deploy-code:
+    needs: deploy-infra # Aspetta che l'infrastruttura sia pronta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install & Build Backend
+        working-directory: ${{ env.BACKEND_PATH }}
+        run: |
+          npm install
+          npm run build
+          # Pulizia: Rimuovi devDependencies per alleggerire il pacchetto
+          npm prune --production
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ needs.deploy-infra.outputs.webapp_name }}
+          package: ${{ env.BACKEND_PATH }}
