@@ -9,36 +9,148 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 8080;
 
-app.get('/', (req, res) => {
-    res.send('Azure Migration Analyzer API - Running');
-});
+// --- DEFINIZIONE TIPI ---
+interface MigrationIssue {
+    severity: 'Blocker' | 'Critical' | 'Warning' | 'Info';
+    message: string;
+    remediation: string;
+}
 
-// Endpoint di test per verificare la connessione a Graph
-app.get('/api/test-graph', async (req, res) => {
+interface AnalyzedResource {
+    id: string;
+    name: string;
+    type: string;
+    resourceGroup: string;
+    location: string;
+    migrationStatus: 'Ready' | 'Warning' | 'Critical' | 'Blocker';
+    issues: MigrationIssue[];
+}
+
+// --- LOGICA DI ANALISI ---
+function analyzeResource(res: any): AnalyzedResource {
+    const issues: MigrationIssue[] = [];
+    let status: AnalyzedResource['migrationStatus'] = 'Ready';
+
+    // 1. ANALISI IDENTITY (Il problema #1 nelle migrazioni Tenant-to-Tenant)
+    if (res.identity && (res.identity.type === 'SystemAssigned' || res.identity.type.includes('SystemAssigned'))) {
+        issues.push({
+            severity: 'Critical',
+            message: 'Managed Identity rilevata (System Assigned).',
+            remediation: 'L\'identità verrà eliminata e ricreata con un nuovo Object ID. I permessi su KeyVault/SQL/Storage andranno persi e riassegnati.'
+        });
+    }
+    if (res.identity && res.identity.type.includes('UserAssigned')) {
+        issues.push({
+            severity: 'Warning',
+            message: 'Managed Identity rilevata (User Assigned).',
+            remediation: 'La risorsa Identity deve essere spostata prima o insieme alla risorsa padre.'
+        });
+    }
+
+    // 2. ANALISI SPECIFICA PER TIPO
+    switch (res.type.toLowerCase()) {
+        case 'microsoft.keyvault/vaults':
+            issues.push({
+                severity: 'Critical',
+                message: 'Key Vault legato al Tenant ID.',
+                remediation: 'Dopo la migrazione, il Key Vault sarà inaccessibile. Necessario reimpostare il Tenant ID via CLI e ricreare le Access Policies.'
+            });
+            break;
+
+        case 'microsoft.network/publicipaddresses':
+            if (res.sku && res.sku.name === 'Standard') {
+                issues.push({
+                    severity: 'Blocker',
+                    message: 'Public IP SKU Standard.',
+                    remediation: 'I Public IP Standard non possono essere spostati tra sottoscrizioni/tenant se associati a risorse. Spesso richiesto disassociazione o ricreazione.'
+                });
+            }
+            break;
+            
+        case 'microsoft.compute/virtualmachines':
+            if (res.properties && res.properties.osProfile && res.properties.osProfile.linuxConfiguration && res.properties.osProfile.linuxConfiguration.ssh) {
+                 // Check generico, le VM di solito si muovono bene ma attenzione alle estensioni
+            }
+            issues.push({
+                severity: 'Info',
+                message: 'Virtual Machine.',
+                remediation: 'Verificare che non ci siano estensioni crittografate o backup attivi nel vault di recovery.'
+            });
+            break;
+
+        case 'microsoft.web/sites': // Web Apps
+            issues.push({
+                severity: 'Warning',
+                message: 'App Service Web App.',
+                remediation: 'I certificati App Service Managed dovranno essere riconvalidati (dominio). I Custom Domain potrebbero richiedere aggiornamento DNS.'
+            });
+            break;
+
+        case 'microsoft.sql/servers':
+            if (res.identity) {
+                 issues.push({
+                    severity: 'Critical',
+                    message: 'SQL Server con AAD Auth / Identity.',
+                    remediation: 'L\'Admin AAD del server SQL verrà invalidato. Va reimpostato post-migrazione.'
+                });
+            }
+            break;
+    }
+
+    // Determina lo stato finale basato sulla gravità peggiore trovata
+    if (issues.some(i => i.severity === 'Blocker')) status = 'Blocker';
+    else if (issues.some(i => i.severity === 'Critical')) status = 'Critical';
+    else if (issues.some(i => i.severity === 'Warning')) status = 'Warning';
+
+    return {
+        id: res.id,
+        name: res.name,
+        type: res.type,
+        resourceGroup: res.resourceGroup,
+        location: res.location,
+        migrationStatus: status,
+        issues
+    };
+}
+
+// --- ENDPOINT ---
+app.get('/', (req, res) => { res.send('Azure Migration Engine Ready.'); });
+
+app.get('/api/analyze', async (req, res) => {
     try {
-        // Usa Managed Identity su Azure o le tue credenziali locali
         const credential = new DefaultAzureCredential();
         const client = new ResourceGraphClient(credential);
 
-        const query = "Resources | summarize count()";
+        // Query ottimizzata per estrarre proprietà vitali per l'analisi
+        const query = `
+            Resources
+            | project name, type, kind, location, tags, sku, identity, properties, id, resourceGroup
+            | order by resourceGroup asc
+        `;
+
+        console.log("Analisi in corso...");
+        const result = await client.resources({ query });
         
-        console.log("Esecuzione query su Graph...");
-        const result = await client.resources({
-            query: query
-        });
+        // Eseguiamo l'analisi logica su ogni risorsa
+        const analyzedResources = (result.data as any[]).map(analyzeResource);
+
+        // Calcolo statistiche
+        const summary = {
+            total: analyzedResources.length,
+            blockers: analyzedResources.filter(r => r.migrationStatus === 'Blocker').length,
+            critical: analyzedResources.filter(r => r.migrationStatus === 'Critical').length,
+            warnings: analyzedResources.filter(r => r.migrationStatus === 'Warning').length,
+            ready: analyzedResources.filter(r => r.migrationStatus === 'Ready').length,
+        };
 
         res.json({
-            status: "Success",
-            data: result.data,
-            count: result.totalRecords
+            summary,
+            details: analyzedResources
         });
 
     } catch (error: any) {
-        console.error("Errore Graph:", error);
-        res.status(500).json({
-            status: "Error",
-            message: error.message || "Errore sconosciuto"
-        });
+        console.error("Errore Analisi:", error);
+        res.status(500).json({ error: error.message });
     }
 });
 
