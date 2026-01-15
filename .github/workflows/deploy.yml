@@ -34,9 +34,9 @@ jobs:
           template: ./infra/main.bicep
           parameters: location=italynorth
 
-  # JOB 2: Build & Deploy Codice Node.js
+# JOB 2: Build & Deploy Full Stack
   build-and-deploy-code:
-    needs: deploy-infra # Aspetta che l'infrastruttura sia pronta
+    needs: deploy-infra
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -44,14 +44,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '18'
 
-      - name: Install & Build Backend
-        working-directory: ${{ env.BACKEND_PATH }}
+      # 1. BUILD FRONTEND
+      - name: Install & Build Frontend
+        working-directory: ./frontend
         run: |
           npm install
           npm run build
-          # Pulizia: Rimuovi devDependencies per alleggerire il pacchetto
+      
+      # 2. PREPARA BACKEND
+      - name: Install Backend & Copy Frontend
+        working-directory: ./backend
+        run: |
+          npm install
+          npm run build
+          # Crea la cartella pubblica e ci copia dentro la build di React
+          mkdir -p public
+          cp -r ../frontend/dist/* public/
+          # Pulizia dipendenze dev
           npm prune --production
 
       - name: Azure Login

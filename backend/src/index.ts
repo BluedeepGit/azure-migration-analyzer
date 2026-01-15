@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { DefaultAzureCredential } from '@azure/identity';
 import { ResourceGraphClient } from '@azure/arm-resourcegraph';
 
@@ -8,6 +9,9 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 8080;
+
+// 1. CONFIGURAZIONE FRONTEND: Serve i file statici della cartella 'public' (dove copieremo React)
+app.use(express.static(path.join(__dirname, '../public')));
 
 // --- DEFINIZIONE TIPI ---
 interface MigrationIssue {
@@ -26,12 +30,12 @@ interface AnalyzedResource {
     issues: MigrationIssue[];
 }
 
-// --- LOGICA DI ANALISI ---
+// --- LOGICA DI ANALISI (IL MOTORE) ---
 function analyzeResource(res: any): AnalyzedResource {
     const issues: MigrationIssue[] = [];
     let status: AnalyzedResource['migrationStatus'] = 'Ready';
 
-    // 1. ANALISI IDENTITY (Il problema #1 nelle migrazioni Tenant-to-Tenant)
+    // A. Analisi Identity
     if (res.identity && (res.identity.type === 'SystemAssigned' || res.identity.type.includes('SystemAssigned'))) {
         issues.push({
             severity: 'Critical',
@@ -47,7 +51,7 @@ function analyzeResource(res: any): AnalyzedResource {
         });
     }
 
-    // 2. ANALISI SPECIFICA PER TIPO
+    // B. Analisi specifica per Tipo di Risorsa
     switch (res.type.toLowerCase()) {
         case 'microsoft.keyvault/vaults':
             issues.push({
@@ -68,9 +72,6 @@ function analyzeResource(res: any): AnalyzedResource {
             break;
             
         case 'microsoft.compute/virtualmachines':
-            if (res.properties && res.properties.osProfile && res.properties.osProfile.linuxConfiguration && res.properties.osProfile.linuxConfiguration.ssh) {
-                 // Check generico, le VM di solito si muovono bene ma attenzione alle estensioni
-            }
             issues.push({
                 severity: 'Info',
                 message: 'Virtual Machine.',
@@ -78,7 +79,7 @@ function analyzeResource(res: any): AnalyzedResource {
             });
             break;
 
-        case 'microsoft.web/sites': // Web Apps
+        case 'microsoft.web/sites':
             issues.push({
                 severity: 'Warning',
                 message: 'App Service Web App.',
@@ -97,7 +98,7 @@ function analyzeResource(res: any): AnalyzedResource {
             break;
     }
 
-    // Determina lo stato finale basato sulla gravità peggiore trovata
+    // C. Calcolo dello stato finale in base alla gravità peggiore
     if (issues.some(i => i.severity === 'Blocker')) status = 'Blocker';
     else if (issues.some(i => i.severity === 'Critical')) status = 'Critical';
     else if (issues.some(i => i.severity === 'Warning')) status = 'Warning';
@@ -113,28 +114,28 @@ function analyzeResource(res: any): AnalyzedResource {
     };
 }
 
-// --- ENDPOINT ---
-app.get('/', (req, res) => { res.send('Azure Migration Engine Ready.'); });
+// --- ENDPOINT API ---
 
+// Endpoint principale per l'analisi
 app.get('/api/analyze', async (req, res) => {
     try {
         const credential = new DefaultAzureCredential();
         const client = new ResourceGraphClient(credential);
 
-        // Query ottimizzata per estrarre proprietà vitali per l'analisi
+        // Query Azure Graph per estrarre tutti i dettagli necessari
         const query = `
             Resources
             | project name, type, kind, location, tags, sku, identity, properties, id, resourceGroup
             | order by resourceGroup asc
         `;
 
-        console.log("Analisi in corso...");
+        console.log("Inizio scansione e analisi delle risorse su Azure Graph...");
         const result = await client.resources({ query });
         
-        // Eseguiamo l'analisi logica su ogni risorsa
+        // Applichiamo la logica riga per riga
         const analyzedResources = (result.data as any[]).map(analyzeResource);
 
-        // Calcolo statistiche
+        // Calcolo statistiche per la dashboard
         const summary = {
             total: analyzedResources.length,
             blockers: analyzedResources.filter(r => r.migrationStatus === 'Blocker').length,
@@ -143,6 +144,7 @@ app.get('/api/analyze', async (req, res) => {
             ready: analyzedResources.filter(r => r.migrationStatus === 'Ready').length,
         };
 
+        // Ritorno JSON al frontend
         res.json({
             summary,
             details: analyzedResources
@@ -154,6 +156,12 @@ app.get('/api/analyze', async (req, res) => {
     }
 });
 
+// 2. CONFIGURAZIONE FRONTEND (Fallback): Tutte le richieste che NON sono /api mandano a React
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public', 'index.html'));
+});
+
+// --- AVVIO SERVER ---
 app.listen(PORT, () => {
-    console.log(`Server avviato su porta ${PORT}`);
+    console.log(`Azure Migration Engine avviato su porta ${PORT}`);
 });
