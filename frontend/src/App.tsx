@@ -7,11 +7,13 @@ interface Issue {
   remediation: string;
 }
 
+// CORREZIONE QUI SOTTO: Aggiunta 'location'
 interface Resource {
   id: string;
   name: string;
   type: string;
   resourceGroup: string;
+  location: string; // <--- MANCAVA QUESTA RIGA
   migrationStatus: 'Ready' | 'Warning' | 'Critical' | 'Blocker';
   issues: Issue[];
 }
