@@ -4,44 +4,100 @@
     "resourceType": "Microsoft.AAD/domainServices",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Microsoft Entra Domain Services",
-    "impact": "Servizio non spostabile. Legato alla VNET e al Tenant di creazione.",
-    "workaround": "Ricreare il Managed Domain nella nuova sottoscrizione.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/active-directory-domain-services/manage-subscription-move"
+    "message": "Entra Domain Services",
+    "impact": "Servizio non spostabile.",
+    "workaround": "Ricreare nella nuova sottoscrizione.",
+    "downtimeRisk": true
   },
   {
-    "id": "BLK-ADH-HEALTH",
+    "id": "BLK-ADH-ALL",
     "resourceType": "Microsoft.ADHybridHealthService/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
     "message": "AD Hybrid Health Service",
-    "impact": "Non supportato.",
-    "workaround": "Nessuna azione diretta.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftadhybridhealthservice"
+    "impact": "Intero namespace non spostabile.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": false
   },
   {
-    "id": "BLK-AVS",
-    "resourceType": "Microsoft.AVS/*",
+    "id": "BLK-ADVISOR",
+    "resourceType": "Microsoft.Advisor/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Azure VMware Solution (AVS)",
-    "impact": "I Private Cloud AVS non supportano lo spostamento.",
-    "workaround": "Richiede ridistribuzione.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-vmware/concepts-hub"
+    "message": "Azure Advisor Configuration",
+    "impact": "Configurazioni e soppressioni Advisor non si spostano.",
+    "workaround": "Riconfigurare nella destinazione.",
+    "downtimeRisk": false
   },
   {
-    "id": "BLK-BLOCKCHAIN",
-    "resourceType": "Microsoft.Blockchain/*",
+    "id": "BLK-ALERTS",
+    "resourceType": "Microsoft.AlertsManagement/alerts",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Azure Blockchain Service",
-    "impact": "Servizio legacy/deprecato non spostabile.",
-    "workaround": "Migrare dati off-chain.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/blockchain/"
+    "message": "Alert Instances",
+    "impact": "Le istanze degli alert non si spostano (solo le regole si spostano).",
+    "workaround": "Nessuna, gli alert storici rimangono legati all'ID risorsa vecchio.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-APP-LEGACY",
+    "resourceType": "Microsoft.AppService/apiapps",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "API Apps (Legacy)",
+    "impact": "Risorsa legacy non spostabile.",
+    "workaround": "Migrare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-APP-GATEWAY-LEGACY",
+    "resourceType": "Microsoft.AppService/gateways",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "App Service Gateways (Legacy)",
+    "impact": "Non spostabile.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-ARC-DATA",
+    "resourceType": "Microsoft.AzureArcData/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Azure Arc Data Resources",
+    "impact": "Data Controllers e SQL MI Arc non supportano il move.",
+    "workaround": "Deregistrare e riregistrare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-STACK-HCI",
+    "resourceType": "Microsoft.AzureStackHCI/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Azure Stack HCI",
+    "impact": "Cluster e registrazioni HCI non spostabili.",
+    "workaround": "Riregistrare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-BILLING",
+    "resourceType": "Microsoft.Billing/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Billing Resources",
+    "impact": "Profili, Fattiure e Enrollment non sono risorse spostabili.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-BING",
+    "resourceType": "Microsoft.BingMaps/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Bing Maps API",
+    "impact": "Account non spostabili.",
+    "workaround": "Ricreare account.",
+    "downtimeRisk": true
   },
   {
     "id": "BLK-BIZTALK",
@@ -49,10 +105,29 @@
     "scenario": "cross-subscription",
     "severity": "Blocker",
     "message": "BizTalk Services",
-    "impact": "Servizio non spostabile.",
-    "workaround": "Migrare a Logic Apps.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftbiztalkservices"
+    "impact": "Non supportato.",
+    "workaround": "Migrare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-BLOCKCHAIN",
+    "resourceType": "Microsoft.Blockchain/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Blockchain Service",
+    "impact": "Non supportato.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-BLUEPRINT",
+    "resourceType": "Microsoft.Blueprint/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Blueprints",
+    "impact": "Definizioni e assegnazioni Blueprint non si spostano.",
+    "workaround": "Ricreare le definizioni.",
+    "downtimeRisk": false
   },
   {
     "id": "BLK-CLASSIC-ALL",
@@ -60,142 +135,271 @@
     "scenario": "cross-subscription",
     "severity": "Blocker",
     "message": "Classic Resources (ASM)",
-    "impact": "Tutte le risorse Classic (Compute, Storage, Network) non sono spostabili.",
-    "workaround": "Migrare obbligatoriamente a ARM prima del move.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/virtual-machines/migration-classic-v3"
+    "impact": "Tutte le risorse Classic (Compute, Network, Storage) sono marcate 'No'.",
+    "workaround": "Migrare a ARM.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-COMPUTE-GALLERY",
+    "resourceType": "Microsoft.Compute/galleries",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Azure Compute Gallery (Shared Image Gallery)",
+    "impact": "Le Gallerie e le definizioni immagini non supportano il move.",
+    "workaround": "Ricreare gallery e ripubblicare versioni immagini.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-COMPUTE-RESTORE",
+    "resourceType": "Microsoft.Compute/restorePointCollections",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "VM Restore Point Collections",
+    "impact": "Non spostabili.",
+    "workaround": "Eliminare i punti di ripristino prima del move della VM.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-COMPUTE-SSH",
+    "resourceType": "Microsoft.Compute/sshPublicKeys",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "SSH Public Keys",
+    "impact": "Risorsa SSH Key non spostabile.",
+    "workaround": "Ricreare la risorsa chiave.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-COMPUTE-DISK-ACCESS",
+    "resourceType": "Microsoft.Compute/diskAccesses",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Disk Access Resources",
+    "impact": "Risorsa per Private Link sui dischi, non spostabile.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-COMPUTE-SNAP-INC",
+    "resourceType": "Microsoft.Compute/snapshots",
+    "scenario": "cross-subscription",
+    "condition": { "field": "properties.incremental", "operator": "eq", "value": true },
+    "severity": "Blocker",
+    "message": "Incremental Snapshots",
+    "impact": "CSV: 'No - Incremental'. Solo i Full Snapshots si spostano.",
+    "workaround": "Convertire in Full Snapshot.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-CONFLUENT",
+    "resourceType": "Microsoft.Confluent/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Confluent Cloud",
+    "impact": "Risorsa SaaS non spostabile.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-CONSUMPTION",
+    "resourceType": "Microsoft.Consumption/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Consumption Data",
+    "impact": "Budgets e dati di consumo non sono risorse spostabili.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-CONTAINER-LEGACY",
+    "resourceType": "Microsoft.ContainerService/containerServices",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "ACS (Legacy)",
+    "impact": "Non spostabile.",
+    "workaround": "Migrare a AKS.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-COST-MGMT",
+    "resourceType": "Microsoft.CostManagement/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Cost Management",
+    "impact": "Export, Alert e Report non si spostano.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-CUST-LOCKBOX",
+    "resourceType": "Microsoft.CustomerLockbox/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Customer Lockbox Requests",
+    "impact": "Non spostabili.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": false
   },
   {
     "id": "BLK-DATABOX",
     "resourceType": "Microsoft.DataBox/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Azure Data Box",
-    "impact": "Ordini fisici e dispositivi non spostabili.",
-    "workaround": "Completare l'ordine/job.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/databox/"
+    "message": "Data Box Jobs",
+    "impact": "Job fisici non spostabili.",
+    "workaround": "Attendere completamento.",
+    "downtimeRisk": false
   },
   {
-    "id": "BLK-DATABOXEDGE",
-    "resourceType": "Microsoft.DataBoxEdge/*",
+    "id": "BLK-DATA-MIG",
+    "resourceType": "Microsoft.DataMigration/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Data Box Edge / Stack Edge",
-    "impact": "Risorse fisiche associate non spostabili.",
-    "workaround": "Reset e riconfigurazione.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/databox-online/"
+    "message": "Database Migration Service",
+    "impact": "Servizi e progetti DMS non supportano il move.",
+    "workaround": "Ricreare istanza DMS.",
+    "downtimeRisk": true
   },
   {
-    "id": "BLK-DEVTEST",
+    "id": "BLK-DATADOG",
+    "resourceType": "Microsoft.DataDog/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Datadog Integration",
+    "impact": "Risorsa SaaS non spostabile.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-DEVTEST-LAB",
     "resourceType": "Microsoft.DevTestLab/labs",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "DevTest Lab",
-    "impact": "Il Lab e le VM contenute non si spostano.",
-    "workaround": "Esportare formule e dischi custom, ricreare Lab.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/devtest-lab/"
+    "message": "DevTest Labs",
+    "impact": "CSV: 'No' per Subscription Move (Yes solo per RG Move, ma limitato).",
+    "workaround": "Ricreare Lab.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-DIGITALTWINS",
+    "resourceType": "Microsoft.DigitalTwins/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Azure Digital Twins",
+    "impact": "Istanze non spostabili.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-ELASTIC",
+    "resourceType": "Microsoft.Elastic/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Elastic Integration",
+    "impact": "Risorsa SaaS non spostabile.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-EXPRESSROUTE",
+    "resourceType": "Microsoft.Network/expressRouteCircuits",
+    "scenario": "cross-subscription",
+    "severity": "Critical",
+    "message": "ExpressRoute Circuit",
+    "impact": "CSV: No (se ha autorizzazioni).",
+    "workaround": "Rimuovere autorizzazioni link prima del move.",
+    "downtimeRisk": true
   },
   {
     "id": "BLK-GENOMICS",
     "resourceType": "Microsoft.Genomics/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Microsoft Genomics",
-    "impact": "Account non spostabili.",
-    "workaround": "Ricreare account.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/genomics/"
+    "message": "Genomics",
+    "impact": "Non supportato.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": false
   },
   {
     "id": "BLK-HANA",
     "resourceType": "Microsoft.HanaOnAzure/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "SAP HANA on Azure (Large Instances)",
-    "impact": "Infrastruttura fisica dedicata non spostabile via ARM.",
-    "workaround": "Richiede ticket di supporto Microsoft.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsofthanaonazure"
+    "message": "SAP HANA Large Instances",
+    "impact": "Hardware dedicato non spostabile.",
+    "workaround": "Ticket supporto.",
+    "downtimeRisk": true
   },
   {
     "id": "BLK-HDINSIGHT",
     "resourceType": "Microsoft.HDInsight/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "HDInsight Cluster",
-    "impact": "Cluster non supporta il move.",
-    "workaround": "Backup metastore/dati, delete cluster, ricreare.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/hdinsight/hdinsight-administer-use-portal-linux#move-clusters"
-  },
-  {
-    "id": "BLK-IMPORT",
-    "resourceType": "Microsoft.ImportExport/*",
-    "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "Import/Export Jobs",
-    "impact": "Job fisici non spostabili.",
-    "workaround": "Attendere fine job.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/storage/common/storage-import-export-service"
+    "message": "HDInsight",
+    "impact": "Cluster non spostabili.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": true
   },
   {
     "id": "BLK-INTUNE",
     "resourceType": "Microsoft.Intune/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Microsoft Intune",
-    "impact": "Risorse Intune non spostabili.",
+    "message": "Intune",
+    "impact": "Risorse non spostabili.",
     "workaround": "Nessuna.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftintune"
+    "downtimeRisk": false
   },
   {
-    "id": "BLK-LABSERVICES",
-    "resourceType": "Microsoft.LabServices/*",
+    "id": "BLK-KUBERNETES-CONFIG",
+    "resourceType": "Microsoft.KubernetesConfiguration/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Azure Lab Services",
-    "impact": "Lab Accounts e Labs non spostabili.",
-    "workaround": "Ricreare ambienti.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/lab-services/"
+    "message": "K8s Flux/SourceControl Config",
+    "impact": "Estensioni GitOps non spostabili.",
+    "workaround": "Reinstallare estensioni.",
+    "downtimeRisk": false
   },
   {
-    "id": "BLK-ML-CLASSIC",
-    "resourceType": "Microsoft.MachineLearning/*",
+    "id": "BLK-LB-STD",
+    "resourceType": "Microsoft.Network/loadBalancers",
     "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "Machine Learning Studio (Classic)",
-    "impact": "Workspaces legacy non spostabili.",
-    "workaround": "Migrare a Azure Machine Learning Service.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/machine-learning/migrate-overview"
+    "condition": { "field": "sku.name", "operator": "eq", "value": "Standard" },
+    "severity": "Warning",
+    "message": "Standard Load Balancer",
+    "impact": "CSV: 'No - Standard'. Non spostabile da solo.",
+    "workaround": "Spostare con tutto il backend pool.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-LOG-ALERTS",
+    "resourceType": "Microsoft.Insights/scheduledQueryRules",
+    "scenario": "cross-subscription",
+    "severity": "Info",
+    "message": "Log Alerts",
+    "impact": "CSV: Yes. Attenzione ai riferimenti delle query.",
+    "workaround": "Verificare query dopo il move.",
+    "downtimeRisk": false
   },
   {
     "id": "BLK-MARKETPLACE",
     "resourceType": "Microsoft.Marketplace/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Marketplace Subscriptions (SaaS)",
-    "impact": "Le risorse SaaS di terze parti acquistate non si spostano.",
-    "workaround": "Cancellare e ri-sottoscrivere nel nuovo target.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/marketplace/"
+    "message": "Marketplace SaaS",
+    "impact": "Sottoscrizioni SaaS non spostabili.",
+    "workaround": "Cancellare e riacquistare.",
+    "downtimeRisk": true
   },
   {
     "id": "BLK-MIGRATE",
     "resourceType": "Microsoft.Migrate/*",
     "scenario": "cross-subscription",
     "severity": "Blocker",
-    "message": "Azure Migrate Projects",
-    "impact": "Progetti di assessment/migrazione non spostabili.",
-    "workaround": "Ricreare il progetto.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/migrate/migrate-support-matrix"
+    "message": "Azure Migrate Project",
+    "impact": "Non spostabile.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": false
   },
   {
     "id": "BLK-NETAPP",
@@ -203,133 +407,9 @@
     "scenario": "cross-subscription",
     "severity": "Blocker",
     "message": "Azure NetApp Files",
-    "impact": "Capacity Pools e Volumi non spostabili.",
-    "workaround": "Creare nuovi volumi e migrare dati (es. rsync/robocopy).",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-netapp-files/azure-netapp-files-faqs"
-  },
-  {
-    "id": "BLK-POWERBI",
-    "resourceType": "Microsoft.PowerBI/*",
-    "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "Power BI Embedded",
-    "impact": "Workspace Collections non spostabili.",
-    "workaround": "Nessuna diretta.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftpowerbi"
-  },
-  {
-    "id": "BLK-SAAS",
-    "resourceType": "Microsoft.SaaS/*",
-    "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "SaaS Resources",
-    "impact": "Risorse SaaS non spostabili.",
-    "workaround": "Re-subscribe.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftsaas"
-  },
-  {
-    "id": "BLK-SF-MESH",
-    "resourceType": "Microsoft.ServiceFabricMesh/*",
-    "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "Service Fabric Mesh",
-    "impact": "Preview service retired/non-movable.",
-    "workaround": "Migrare a AKS o Container Apps.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/service-fabric-mesh/"
-  },
-  {
-    "id": "BLK-STORSIMPLE",
-    "resourceType": "Microsoft.StorSimple/*",
-    "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "StorSimple",
-    "impact": "Device Managers non spostabili.",
-    "workaround": "Nessuna.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftstorsimple"
-  },
-  {
-    "id": "BLK-STREAM",
-    "resourceType": "Microsoft.StreamAnalytics/streamingjobs",
-    "scenario": "cross-subscription",
-    "condition": { "field": "properties.jobState", "operator": "eq", "value": "Running" },
-    "severity": "Blocker",
-    "message": "Stream Analytics (Running)",
-    "impact": "I Job in esecuzione non si spostano.",
-    "workaround": "Stop Job -> Move -> Start Job.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/stream-analytics/stream-analytics-manage-job"
-  },
-  {
-    "id": "BLK-VMWARE-CS",
-    "resourceType": "Microsoft.VMwareCloudSimple/*",
-    "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "Azure VMware Solution by CloudSimple",
-    "impact": "Non supportato.",
-    "workaround": "Migrare a AVS (Microsoft).",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-vmware/"
-  },
-  {
-    "id": "BLK-WIN-IOT",
-    "resourceType": "Microsoft.WindowsIoT/*",
-    "scenario": "cross-subscription",
-    "severity": "Blocker",
-    "message": "Windows IoT Services",
-    "impact": "Device services non spostabili.",
-    "workaround": "Ricreare.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftwindowsiot"
-  },
-  {
-    "id": "CRIT-WEB-PLAN",
-    "resourceType": "Microsoft.Web/serverFarms",
-    "scenario": "cross-subscription",
-    "severity": "Critical",
-    "message": "App Service Plan Constraint",
-    "impact": "TUTTE le risorse nel Web Space (Piano, App, Certs) devono muoversi INSIEME. Non si può spostare solo il piano o solo l'app se sono in RG diversi.",
-    "workaround": "Consolidare le risorse in un unico RG prima del move, oppure selezionare tutto il gruppo.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/app-service/manage-move-across-regions"
-  },
-  {
-    "id": "WARN-AKS-MC",
-    "resourceType": "Microsoft.ContainerService/managedClusters",
-    "scenario": "cross-subscription",
-    "severity": "Warning",
-    "message": "AKS Cluster Move",
-    "impact": "Non provare a spostare il Resource Group 'MC_xxx' (Node Resource Group). Spostare SOLO la risorsa AKS.",
-    "workaround": "Selezionare solo l'oggetto Kubernetes Service. Azure sposterà il resto automaticamente.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/aks/faq#can-i-move-my-cluster-between-subscriptions"
-  },
-  {
-    "id": "WARN-RECOVERY",
-    "resourceType": "Microsoft.RecoveryServices/vaults",
-    "scenario": "cross-subscription",
-    "severity": "Warning",
-    "message": "Recovery Services Vault",
-    "impact": "Move fallisce se ci sono backup/restore attivi.",
-    "workaround": "Verificare che non ci siano job in corso.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/backup/backup-azure-move-recovery-services-vault"
-  },
-  {
-    "id": "BLK-VNET-PEER",
-    "resourceType": "Microsoft.Network/virtualNetworks",
-    "scenario": "cross-subscription",
-    "condition": { "field": "properties.virtualNetworkPeerings", "operator": "notEmpty" },
-    "severity": "Blocker",
-    "message": "VNET Peering Active",
-    "impact": "VNET con peering non spostabili.",
-    "workaround": "Rimuovere i peering -> Spostare -> Ricreare.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/virtual-network/virtual-network-manage-peering"
+    "impact": "Volumi non spostabili.",
+    "workaround": "Migrare dati.",
+    "downtimeRisk": true
   },
   {
     "id": "BLK-PIP-STD",
@@ -338,9 +418,110 @@
     "condition": { "field": "sku.name", "operator": "eq", "value": "Standard" },
     "severity": "Warning",
     "message": "Standard Public IP",
-    "impact": "Deve muoversi con la risorsa associata (VM/LB).",
-    "workaround": "Selezionare tutte le risorse associate nel move.",
-    "downtimeRisk": false,
-    "refLink": "https://learn.microsoft.com/en-us/azure/virtual-network/move-across-regions-publicip-portal"
+    "impact": "Non spostabile da solo.",
+    "workaround": "Spostare con risorsa associata.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-POLICY-INSIGHTS",
+    "resourceType": "Microsoft.PolicyInsights/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Policy Events/States",
+    "impact": "Dati di compliance non spostabili.",
+    "workaround": "Rigenerare compliance scan.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-PURVIEW",
+    "resourceType": "Microsoft.Purview/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Purview Account",
+    "impact": "Non spostabile.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-RECOV-VAULT",
+    "resourceType": "Microsoft.RecoveryServices/vaults",
+    "scenario": "cross-subscription",
+    "severity": "Warning",
+    "message": "Recovery Services Vault",
+    "impact": "CSV: Yes. Ma blocca se backup attivi.",
+    "workaround": "Stop job backup.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-SENTINEL",
+    "resourceType": "Microsoft.SecurityInsights/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Sentinel",
+    "impact": "Risorse Sentinel non spostabili direttamente.",
+    "workaround": "Spostare il Log Analytics Workspace.",
+    "downtimeRisk": false
+  },
+  {
+    "id": "BLK-SERVICE-FABRIC-MESH",
+    "resourceType": "Microsoft.ServiceFabricMesh/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Service Fabric Mesh",
+    "impact": "Deprecato/Non spostabile.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-SQL-MI",
+    "resourceType": "Microsoft.Sql/managedInstances",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "SQL Managed Instance",
+    "impact": "CSV: 'No'. Move non supportato.",
+    "workaround": "Backup/Restore.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-STREAM-RUN",
+    "resourceType": "Microsoft.StreamAnalytics/streamingjobs",
+    "scenario": "cross-subscription",
+    "condition": { "field": "properties.jobState", "operator": "eq", "value": "Running" },
+    "severity": "Blocker",
+    "message": "Running Stream Analytics Job",
+    "impact": "Job in esecuzione non spostabili.",
+    "workaround": "Stop -> Move -> Start.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-SYNAPSE",
+    "resourceType": "Microsoft.Synapse/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Synapse Analytics",
+    "impact": "Workspace e Pools non supportano il move.",
+    "workaround": "Ricreare.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-VNET-PEER",
+    "resourceType": "Microsoft.Network/virtualNetworks",
+    "scenario": "cross-subscription",
+    "condition": { "field": "properties.virtualNetworkPeerings", "operator": "notEmpty" },
+    "severity": "Blocker",
+    "message": "VNET Peering",
+    "impact": "Peering attivo blocca il move.",
+    "workaround": "Delete Peering.",
+    "downtimeRisk": true
+  },
+  {
+    "id": "BLK-VMWARE-CS",
+    "resourceType": "Microsoft.VMwareCloudSimple/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "AVS CloudSimple",
+    "impact": "Non supportato.",
+    "workaround": "Nessuna.",
+    "downtimeRisk": true
   }
 ]
