@@ -1,34 +1,12 @@
 [
   {
-    "id": "REG-WEB-001",
-    "resourceType": "Microsoft.Web/sites",
-    "scenario": "cross-region",
-    "severity": "Warning",
-    "message": "App Service (Web App / API App)",
-    "impact": "Il Region Move automatico non è supportato. È necessario ridistribuire l'app nella nuova region.",
-    "workaround": "Utilizzare la funzione 'Clone App' (se supportata dal piano) oppure esportare il Template ARM e rieseguire il deploy nella nuova region.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/app-service/manage-move-across-regions"
-  },
-  {
-    "id": "REG-BIZ-001",
-    "resourceType": "Microsoft.BizTalkServices/apiapps",
-    "scenario": "cross-region",
-    "severity": "Info",
-    "message": "BizTalk API Apps (Legacy)",
-    "impact": "Spostamento supportato solo tramite riesportazione e deploy del Template.",
-    "workaround": "Ricreare la risorsa nella regione di destinazione usando i template ARM esistenti.",
-    "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources"
-  },
-  {
     "id": "REG-VM-001",
     "resourceType": "Microsoft.Compute/virtualMachines",
     "scenario": "cross-region",
     "severity": "Info",
     "message": "Virtual Machine",
-    "impact": "Richiede Azure Resource Mover o Site Recovery. Non è uno spostamento istantaneo.",
-    "workaround": "Configurare Azure Resource Mover per replicare dischi e configurazione nella region target.",
+    "impact": "Supportato tramite Azure Resource Mover.",
+    "workaround": "Usare Azure Resource Mover per orchestrare la replica e il failover nella nuova region.",
     "downtimeRisk": true,
     "refLink": "https://learn.microsoft.com/en-us/azure/resource-mover/tutorial-move-region-virtual-machines"
   },
@@ -38,10 +16,32 @@
     "scenario": "cross-region",
     "severity": "Info",
     "message": "Azure SQL Database",
-    "impact": "Richiede configurazione di Geo-Replication e Failover.",
-    "workaround": "Configurare un secondario geo-replicato nella nuova region e forzare il failover.",
+    "impact": "Spostamento tramite Geo-Replication.",
+    "workaround": "Configurare un DB secondario nella region target e avviare il failover.",
     "downtimeRisk": false,
     "refLink": "https://learn.microsoft.com/en-us/azure/azure-sql/database/move-resources-across-regions"
+  },
+  {
+    "id": "REG-WEB-001",
+    "resourceType": "Microsoft.Web/sites",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "App Service / Function",
+    "impact": "Richiede Redeploy. Non esiste il pulsante 'Sposta'.",
+    "workaround": "Opzione 1: Clone App (se supportato). Opzione 2: Esportare Template ARM e rieseguire deploy. Opzione 3: Backup e Restore.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/app-service/manage-move-across-regions"
+  },
+  {
+    "id": "REG-STG-001",
+    "resourceType": "Microsoft.Storage/storageAccounts",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "Storage Account",
+    "impact": "Richiede copia dati o cambio replica.",
+    "workaround": "Opzione 1: AzCopy per trasferire dati. Opzione 2: Configurare Geo-Redundancy (GRS) e avviare failover.",
+    "downtimeRisk": false,
+    "refLink": "https://learn.microsoft.com/en-us/azure/storage/common/storage-account-move"
   },
   {
     "id": "REG-VNET-001",
@@ -49,9 +49,108 @@
     "scenario": "cross-region",
     "severity": "Warning",
     "message": "Virtual Network",
-    "impact": "Le VNET non si spostano. Vanno create nuove VNET nella region di destinazione con (opzionalmente) lo stesso spazio indirizzi.",
-    "workaround": "Usare Export Template sulla VNET sorgente e deployare nella region target. Attenzione: Le risorse connesse dovranno essere spostate.",
+    "impact": "Le VNET sono risorse regionali. Vanno ricreate.",
+    "workaround": "Esportare Template ARM della VNET e deployare nella nuova region. Attenzione agli IP sovrapposti.",
     "downtimeRisk": true,
     "refLink": "https://learn.microsoft.com/en-us/azure/virtual-network/move-across-regions-vnet-powershell"
+  },
+  {
+    "id": "REG-NSG-001",
+    "resourceType": "Microsoft.Network/networkSecurityGroups",
+    "scenario": "cross-region",
+    "severity": "Info",
+    "message": "NSG",
+    "impact": "Supportato tramite Template Export.",
+    "workaround": "Esportare Template e rideployare.",
+    "downtimeRisk": false,
+    "refLink": "https://learn.microsoft.com/en-us/azure/virtual-network/move-across-regions-nsg-portal"
+  },
+  {
+    "id": "REG-PIP-001",
+    "resourceType": "Microsoft.Network/publicIPAddresses",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "Public IP",
+    "impact": "L'indirizzo IP cambia obbligatoriamente (è legato alla regione).",
+    "workaround": "Creare nuovo IP nella region target. Aggiornare i DNS.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/virtual-network/move-across-regions-publicip-portal"
+  },
+  {
+    "id": "REG-LB-001",
+    "resourceType": "Microsoft.Network/loadBalancers",
+    "scenario": "cross-region",
+    "severity": "Info",
+    "message": "Load Balancer",
+    "impact": "Supportato tramite Redeploy.",
+    "workaround": "Esportare Template e rideployare. Gli IP frontend cambieranno.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/virtual-network/move-across-regions-load-balancer-portal"
+  },
+  {
+    "id": "REG-AKS-001",
+    "resourceType": "Microsoft.ContainerService/managedClusters",
+    "scenario": "cross-region",
+    "severity": "Critical",
+    "message": "AKS Cluster",
+    "impact": "Va creato un nuovo cluster.",
+    "workaround": "Usare AKS Backup/Restore o GitOps (Flux/ArgoCD) per deployare le app sul nuovo cluster.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/aks/faq#can-i-move-my-cluster-between-regions"
+  },
+  {
+    "id": "REG-RSV-001",
+    "resourceType": "Microsoft.RecoveryServices/vaults",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "Recovery Services Vault",
+    "impact": "Spostare un Vault con backup storici è complesso.",
+    "workaround": "Usare la funzione 'Cross Region Restore' (CRR) per i dati o ricreare il vault.",
+    "downtimeRisk": false,
+    "refLink": "https://learn.microsoft.com/en-us/azure/backup/backup-azure-move-recovery-services-vault"
+  },
+  {
+    "id": "REG-LOG-001",
+    "resourceType": "Microsoft.OperationalInsights/workspaces",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "Log Analytics Workspace",
+    "impact": "Non supportato spostamento con dati storici.",
+    "workaround": "Creare nuovo Workspace. Mantenere il vecchio per consultazione storica.",
+    "downtimeRisk": false,
+    "refLink": "https://learn.microsoft.com/en-us/azure/azure-monitor/logs/move-workspace-region"
+  },
+  {
+    "id": "REG-API-001",
+    "resourceType": "Microsoft.ApiManagement/service",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "API Management",
+    "impact": "Supportato tramite Backup/Restore (Premium) o Template.",
+    "workaround": "Usare la funzione Backup e Restore sulla nuova istanza.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-deploy-multi-region"
+  },
+  {
+    "id": "REG-BUS-001",
+    "resourceType": "Microsoft.ServiceBus/namespaces",
+    "scenario": "cross-region",
+    "severity": "Info",
+    "message": "Service Bus",
+    "impact": "Metadata (Code/Topic) spostabili via Template.",
+    "workaround": "Esportare template ARM e deployare. I messaggi nelle code NON vengono migrati.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/service-bus-messaging/move-across-regions"
+  },
+  {
+    "id": "REG-KEY-001",
+    "resourceType": "Microsoft.KeyVault/vaults",
+    "scenario": "cross-region",
+    "severity": "Info",
+    "message": "Key Vault",
+    "impact": "Supportato tramite Backup/Restore di chiavi e secret.",
+    "workaround": "Creare nuovo Vault. Fare Backup di ogni secret/key e Restore nel nuovo.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/key-vault/general/move-region"
   }
 ]
