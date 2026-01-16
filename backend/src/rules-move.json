@@ -211,5 +211,27 @@
     "workaround": "Spostare l'intero set di risorse AVD insieme.",
     "downtimeRisk": false,
     "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources#microsoftdesktopvirtualization"
+  },
+  {
+    "id": "BLK-LEGACY-001",
+    "resourceType": "Microsoft.BizTalkServices/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "BizTalk Services (Legacy)",
+    "impact": "Le risorse legacy BizTalk (apiapps, gateways, identities) non supportano lo spostamento di sottoscrizione.",
+    "workaround": "Ridistribuire la soluzione usando tecnologie moderne (Logic Apps/API Management) o ricreare nella nuova sub.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources"
+  },
+  {
+    "id": "BLK-LEGACY-002",
+    "resourceType": "Microsoft.BizTalkServices/*",
+    "scenario": "cross-resourcegroup",
+    "severity": "Blocker",
+    "message": "BizTalk Services (Legacy)",
+    "impact": "Le risorse legacy BizTalk non supportano il cambio di Resource Group.",
+    "workaround": "Nessuna azione diretta possibile.",
+    "downtimeRisk": false,
+    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources"
   }
 ]

@@ -5,8 +5,9 @@ import { DefaultAzureCredential } from '@azure/identity';
 import { ResourceGraphClient } from '@azure/arm-resourcegraph';
 
 // --- IMPORTIAMO TUTTE LE KNOWLEDGE BASE ---
-import tenantRules from './rules.json';
-import moveRules from './rules-move.json';
+import tenantRules from './rules.json';       // Cross-Tenant
+import moveRules from './rules-move.json';    // Cross-Sub / Cross-RG
+import regionRules from './rules-region.json'; // Cross-Region (NUOVO)
 
 // Uniamo le regole in un unico array
 const rulesData = [...tenantRules, ...moveRules];

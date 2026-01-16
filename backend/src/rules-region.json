@@ -1,0 +1,57 @@
+[
+  {
+    "id": "REG-WEB-001",
+    "resourceType": "Microsoft.Web/sites",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "App Service (Web App / API App)",
+    "impact": "Il Region Move automatico non è supportato. È necessario ridistribuire l'app nella nuova region.",
+    "workaround": "Utilizzare la funzione 'Clone App' (se supportata dal piano) oppure esportare il Template ARM e rieseguire il deploy nella nuova region.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/app-service/manage-move-across-regions"
+  },
+  {
+    "id": "REG-BIZ-001",
+    "resourceType": "Microsoft.BizTalkServices/apiapps",
+    "scenario": "cross-region",
+    "severity": "Info",
+    "message": "BizTalk API Apps (Legacy)",
+    "impact": "Spostamento supportato solo tramite riesportazione e deploy del Template.",
+    "workaround": "Ricreare la risorsa nella regione di destinazione usando i template ARM esistenti.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-support-resources"
+  },
+  {
+    "id": "REG-VM-001",
+    "resourceType": "Microsoft.Compute/virtualMachines",
+    "scenario": "cross-region",
+    "severity": "Info",
+    "message": "Virtual Machine",
+    "impact": "Richiede Azure Resource Mover o Site Recovery. Non è uno spostamento istantaneo.",
+    "workaround": "Configurare Azure Resource Mover per replicare dischi e configurazione nella region target.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/resource-mover/tutorial-move-region-virtual-machines"
+  },
+  {
+    "id": "REG-SQL-001",
+    "resourceType": "Microsoft.Sql/servers",
+    "scenario": "cross-region",
+    "severity": "Info",
+    "message": "Azure SQL Database",
+    "impact": "Richiede configurazione di Geo-Replication e Failover.",
+    "workaround": "Configurare un secondario geo-replicato nella nuova region e forzare il failover.",
+    "downtimeRisk": false,
+    "refLink": "https://learn.microsoft.com/en-us/azure/azure-sql/database/move-resources-across-regions"
+  },
+  {
+    "id": "REG-VNET-001",
+    "resourceType": "Microsoft.Network/virtualNetworks",
+    "scenario": "cross-region",
+    "severity": "Warning",
+    "message": "Virtual Network",
+    "impact": "Le VNET non si spostano. Vanno create nuove VNET nella region di destinazione con (opzionalmente) lo stesso spazio indirizzi.",
+    "workaround": "Usare Export Template sulla VNET sorgente e deployare nella region target. Attenzione: Le risorse connesse dovranno essere spostate.",
+    "downtimeRisk": true,
+    "refLink": "https://learn.microsoft.com/en-us/azure/virtual-network/move-across-regions-vnet-powershell"
+  }
+]
