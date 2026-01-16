@@ -4,15 +4,15 @@ import path from 'path';
 import { DefaultAzureCredential } from '@azure/identity';
 import { ResourceGraphClient } from '@azure/arm-resourcegraph';
 
-// --- 1. IMPORTIAMO TUTTE LE KNOWLEDGE BASE ---
-import tenantRules from './rules.json';       // Cross-Tenant Rules
-import moveRules from './rules-move.json';    // Cross-Subscription Rules
-import regionRules from './rules-region.json'; // Cross-Region Rules
+// --- IMPORTIAMO LE 4 BASI DI DATI ---
+import tenantRules from './rules.json';        // Cross-Tenant (fatto a mano prima)
+import rgRules from './rules-rg.json';         // Generato da PowerShell
+import subRules from './rules-sub.json';       // Generato da PowerShell
+import regionRules from './rules-region.json'; // Generato da PowerShell
 
-// Uniamo tutto in un unico array master
-// IMPORTANTE: TypeScript potrebbe lamentarsi se i JSON non hanno "as const", 
-// forziamo il tipo a any[] per flessibilità nel merge
-const rulesData: any[] = [...tenantRules, ...moveRules, ...regionRules];
+// Uniamo tutto in un unico array
+// Usiamo 'any' per evitare problemi di tipo strict durante il merge di JSON diversi
+const rulesData: any[] = [...tenantRules, ...rgRules, ...subRules, ...regionRules];
 
 const app = express();
 app.use(cors());
@@ -62,41 +62,26 @@ interface AnalyzedResource {
     issues: MigrationIssue[];
 }
 
-// --- HELPER ---
 function getNestedValue(obj: any, path: string): any {
     if (!path) return undefined;
     return path.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, obj);
 }
 
-// --- ENGINE DI VALIDAZIONE (CORE) ---
 function evaluateRule(res: any, rule: RuleDefinition, scenario: MigrationScenario): boolean {
-    
-    // 1. FILTRO SCENARIO (Con Logica di Ereditarietà)
-    let scenarioMatch = false;
+    // 1. Check Scenario
+    if (rule.scenario !== scenario) return false;
 
-    if (rule.scenario === scenario) {
-        // Match esatto (es. cross-region == cross-region)
-        scenarioMatch = true;
-    } else if (scenario === 'cross-resourcegroup' && rule.scenario === 'cross-subscription') {
-        // FIX CRITICO: Se sto spostando tra Resource Group, applico anche le regole 
-        // di Subscription Move, perché i blocchi sono quasi sempre gli stessi.
-        scenarioMatch = true;
-    }
-
-    if (!scenarioMatch) return false;
-
-    // 2. MATCHING RESOURCE TYPE (Wildcard & Case Insensitive)
     const resType = res.type.toLowerCase();
     const ruleType = rule.resourceType.toLowerCase();
     let typeMatches = false;
 
+    // 2. Matching Resource Type
     if (ruleType === '*' || ruleType === resType) {
         typeMatches = true;
     } 
     else if (ruleType.endsWith('/*')) {
-        const prefix = ruleType.slice(0, -2); // Rimuove '/*'
-        // Verifica che il prefisso coincida E che sia seguito da '/' o sia la fine della stringa
-        // Esempio: 'microsoft.sql' NON deve matchare 'microsoft.sqlvirtualmachine'
+        const prefix = ruleType.slice(0, -2);
+        // Fix: Ensure strict prefix match (avoid "sql" matching "sqlvirtualmachine")
         if (resType.startsWith(prefix)) {
             if (resType.length === prefix.length || resType[prefix.length] === '/') {
                 typeMatches = true;
@@ -106,31 +91,23 @@ function evaluateRule(res: any, rule: RuleDefinition, scenario: MigrationScenari
 
     if (!typeMatches) return false;
 
-    // 3. VERIFICA CONDIZIONI LOGICHE (SKU, Properties, ecc.)
+    // 3. Check Conditions
     if (rule.condition) {
         const value = getNestedValue(res, rule.condition.field);
-        
-        // Se il campo richiesto dalla condizione non esiste sulla risorsa, la regola non si applica
         if (value === undefined || value === null) return false;
 
-        const ruleValue = String(rule.condition.value).toLowerCase();
-        const actualValue = String(value).toLowerCase();
+        const ruleVal = String(rule.condition.value).toLowerCase();
+        const actualVal = String(value).toLowerCase();
 
         switch (rule.condition.operator) {
-            case 'eq':
-                return actualValue === ruleValue;
-            case 'neq':
-                return actualValue !== ruleValue;
-            case 'contains':
-                return actualValue.includes(ruleValue);
-            case 'notEmpty':
-                return Array.isArray(value) && value.length > 0;
-            default:
-                return false;
+            case 'eq': return actualVal === ruleVal;
+            case 'neq': return actualVal !== ruleVal;
+            case 'contains': return actualVal.includes(ruleVal);
+            case 'notEmpty': return Array.isArray(value) && value.length > 0;
+            default: return false;
         }
     }
 
-    // Se siamo arrivati qui, la regola si applica
     return true;
 }
 
@@ -138,9 +115,7 @@ function analyzeResource(res: any, scenario: MigrationScenario): AnalyzedResourc
     const issues: MigrationIssue[] = [];
     let status: Severity | 'Ready' = 'Ready';
 
-    const rules = rulesData as RuleDefinition[];
-
-    rules.forEach(rule => {
+    rulesData.forEach((rule: RuleDefinition) => {
         if (evaluateRule(res, rule, scenario)) {
             issues.push({
                 ruleId: rule.id,
@@ -154,7 +129,6 @@ function analyzeResource(res: any, scenario: MigrationScenario): AnalyzedResourc
         }
     });
 
-    // Calcolo Severity Finale (Priorità: Blocker > Critical > Warning > Info)
     if (issues.some(i => i.severity === 'Blocker')) status = 'Blocker';
     else if (issues.some(i => i.severity === 'Critical')) status = 'Critical';
     else if (issues.some(i => i.severity === 'Warning')) status = 'Warning';
@@ -171,22 +145,21 @@ function analyzeResource(res: any, scenario: MigrationScenario): AnalyzedResourc
     };
 }
 
-// --- API ---
 app.get('/api/analyze', async (req, res) => {
     try {
         const scenario = (req.query.scenario as MigrationScenario) || 'cross-tenant';
         const credential = new DefaultAzureCredential();
         const client = new ResourceGraphClient(credential);
 
-        // Query estesa per prendere tutte le properties necessarie alle condizioni
+        // Fetch properties essential for conditions (sku, incremental, etc.)
         const query = `
             Resources
             | project name, type, kind, location, tags, sku, identity, properties, id, resourceGroup
             | order by resourceGroup asc
         `;
 
-        console.log(`Analisi avviata. Scenario: ${scenario}. Regole caricate: ${rulesData.length}`);
-        
+        console.log(`Analisi: ${scenario}. Totale Regole: ${rulesData.length}`);
+
         const result = await client.resources({ query });
         const analyzedResources = (result.data as any[]).map(r => analyzeResource(r, scenario));
 
@@ -202,7 +175,7 @@ app.get('/api/analyze', async (req, res) => {
         res.json({ scenario, summary, details: analyzedResources });
 
     } catch (error: any) {
-        console.error("Errore Backend:", error);
+        console.error("Backend Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -212,10 +185,6 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server avviato su porta ${PORT}`);
-    console.log(`Knowledge Base Stats: 
-        - Tenant Rules: ${tenantRules.length}
-        - Move Rules: ${moveRules.length}
-        - Region Rules: ${regionRules.length}
-    `);
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Rules Loaded: Tenant(${tenantRules.length}), RG(${rgRules.length}), Sub(${subRules.length}), Region(${regionRules.length})`);
 });
