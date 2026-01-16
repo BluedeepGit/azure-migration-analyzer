@@ -6,9 +6,10 @@ type MigrationScenario = 'cross-tenant' | 'cross-subscription' | 'cross-resource
 interface Issue {
   severity: string;
   message: string;
-  impact: string;       // NUOVO
-  workaround: string;   // NUOVO
-  downtimeRisk: boolean; // NUOVO
+  impact: string;
+  workaround: string;
+  downtimeRisk: boolean;
+  refLink?: string; // <--- 1. NUOVO: Aggiunto questo campo opzionale
 }
 
 interface Resource {
@@ -27,7 +28,7 @@ interface Summary {
   critical: number;
   warnings: number;
   ready: number;
-  downtimeRisks: number; // NUOVO KPI
+  downtimeRisks: number;
 }
 
 interface ApiResponse {
@@ -160,7 +161,6 @@ function App() {
                       <td className="px-6 py-4 align-top">
                         <div className="flex flex-col gap-2 items-start">
                           {getStatusBadge(res.migrationStatus)}
-                          {/* Downtime Badge */}
                           {res.issues.some(i => i.downtimeRisk) && (
                             <span className="flex items-center gap-1 px-2 py-1 rounded bg-purple-100 text-purple-800 text-xs font-bold border border-purple-200">
                               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg>
@@ -196,6 +196,19 @@ function App() {
                                   <div className="text-slate-400 font-bold mb-1 uppercase tracking-wider">Workaround / Fix:</div>
                                   {issue.workaround}
                                 </div>
+
+                                {/* 2. NUOVO: Link Documentazione (Inserito qui) */}
+                                {issue.refLink && (
+                                  <a 
+                                    href={issue.refLink} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline text-xs mt-2 font-medium transition-colors"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                                    📚 Documentazione Ufficiale Microsoft
+                                  </a>
+                                )}
                               </div>
                             ))}
                           </div>

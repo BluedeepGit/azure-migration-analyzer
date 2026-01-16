@@ -3,6 +3,8 @@ import cors from 'cors';
 import path from 'path';
 import { DefaultAzureCredential } from '@azure/identity';
 import { ResourceGraphClient } from '@azure/arm-resourcegraph';
+// Importiamo la Knowledge Base
+import rulesData from './rules.json'; 
 
 const app = express();
 app.use(cors());
@@ -15,12 +17,32 @@ const PORT = process.env.PORT || 8080;
 type MigrationScenario = 'cross-tenant' | 'cross-subscription' | 'cross-resourcegroup' | 'cross-region';
 type Severity = 'Blocker' | 'Critical' | 'Warning' | 'Info';
 
-interface MigrationIssue {
+// Definizione della struttura del file JSON
+interface RuleDefinition {
+    id: string;
+    resourceType: string;
+    scenario: string;
+    condition?: {
+        field: string;
+        operator: 'eq' | 'neq' | 'contains' | 'notEmpty';
+        value?: any;
+    };
     severity: Severity;
     message: string;
-    impact: string;       
-    workaround: string;   
-    downtimeRisk: boolean; 
+    impact: string;
+    workaround: string;
+    downtimeRisk: boolean;
+    refLink?: string;
+}
+
+interface MigrationIssue {
+    ruleId: string;
+    severity: Severity;
+    message: string;
+    impact: string;
+    workaround: string;
+    downtimeRisk: boolean;
+    refLink?: string;
 }
 
 interface AnalyzedResource {
@@ -33,133 +55,64 @@ interface AnalyzedResource {
     issues: MigrationIssue[];
 }
 
-// --- HELPER PER GARANTIRE STRUTTURA DATI ---
-const createIssue = (
-    severity: Severity, 
-    message: string, 
-    impact: string, 
-    workaround: string, 
-    downtimeRisk: boolean = false
-): MigrationIssue => ({ severity, message, impact, workaround, downtimeRisk });
+// --- ENGINE DI VALIDAZIONE REGOLE ---
 
-// --- KNOWLEDGE BASE: REGOLE TENANT-TO-TENANT ---
-const TENANT_RULES: Record<string, (res: any) => MigrationIssue[]> = {
-    
-    // 1. KEY VAULT
-    'microsoft.keyvault/vaults': (res) => [
-        createIssue(
-            'Critical',
-            'Associazione Tenant ID persa',
-            'Il Key Vault diventerà INACCESSIBILE. Le app non potranno leggere i secret.',
-            'Eseguire post-migrazione: "Update-AzKeyVault -VaultName X -TenantId Y". Ricreare Access Policies.',
-            true
-        )
-    ],
+// Helper per leggere proprietà annidate (es. "properties.siteAuthEnabled")
+function getNestedValue(obj: any, path: string): any {
+    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+}
 
-    // 2. APP SERVICE (Web App)
-    'microsoft.web/sites': (res) => {
-        const issues: MigrationIssue[] = [];
+// Verifica se una regola si applica a una risorsa
+function evaluateRule(res: any, rule: RuleDefinition, scenario: MigrationScenario): boolean {
+    // 1. Check Scenario
+    if (rule.scenario !== scenario) return false;
+
+    // 2. Check Resource Type (Supporta wildcard *)
+    if (rule.resourceType !== '*' && rule.resourceType.toLowerCase() !== res.type.toLowerCase()) return false;
+
+    // 3. Check Condition (Logica Dinamica)
+    if (rule.condition) {
+        const value = getNestedValue(res, rule.condition.field);
         
-        // Controllo generico sempre presente per Web App
-        issues.push(createIssue(
-            'Warning',
-            'App Service Custom Domains & Certs',
-            'I domini custom e i certificati SSL gestiti potrebbero sganciarsi durante il cambio tenant.',
-            'Rivalidare i record DNS (TXT) dei domini e rigenerare i certificati nel nuovo tenant.',
-            false
-        ));
-
-        // Auth Check
-        if (res.properties && res.properties.siteAuthEnabled) {
-            issues.push(createIssue(
-                'Critical',
-                'Authentication attivo (App Registration)',
-                'Il login utenti fallirà perché la App Registration è nel vecchio tenant.',
-                'Disabilitare Auth prima del move. Creare nuova App Registration nel nuovo tenant e riconfigurare.',
-                true
-            ));
+        switch (rule.condition.operator) {
+            case 'eq':
+                return value === rule.condition.value;
+            case 'neq':
+                return value !== rule.condition.value;
+            case 'contains':
+                return typeof value === 'string' && value.includes(rule.condition.value);
+            case 'notEmpty':
+                return Array.isArray(value) && value.length > 0;
+            default:
+                return false;
         }
-        return issues;
-    },
+    }
 
-    // 3. SQL SERVER
-    'microsoft.sql/servers': (res) => [
-        createIssue(
-            'Critical',
-            'Azure AD Admin & Auth',
-            'L\'admin AD del DB viene rimosso. Gli utenti AAD non potranno loggarsi.',
-            'Reimpostare l\'Admin AD manualmente nel nuovo tenant. Rimappare utenti DB con nuovi SID.',
-            true
-        )
-    ],
+    return true; // Se non c'è condizione, la regola si applica per tipo/scenario
+}
 
-    // 4. AKS / VM SCALE SETS (Il caso che vedevi vuoto)
-    'microsoft.compute/virtualmachinescalesets': (res) => [
-        createIssue(
-            'Warning',
-            'VM Scale Set (AKS Node Pool o Standalone)',
-            'Se parte di AKS, il cluster perderà l\'identità. Se standalone, verificare dipendenze LB.',
-            'Per AKS: Si consiglia redeploy del cluster. Per VMSS puro: verificare Load Balancer e VNET.',
-            true
-        )
-    ],
-
-    // 5. STORAGE ACCOUNT
-    'microsoft.storage/storageaccounts': (res) => [
-        createIssue(
-            'Info',
-            'Storage Account Check',
-            'I dati rimangono intatti, ma le regole RBAC sui dati (Blob Reader) vengono perse.',
-            'Riassegnare i ruoli RBAC (IAM) agli utenti nel nuovo tenant.',
-            false
-        )
-    ]
-};
-
-// --- MOTORE DI ANALISI ---
 function analyzeResource(res: any, scenario: MigrationScenario): AnalyzedResource {
     const issues: MigrationIssue[] = [];
     let status: Severity | 'Ready' = 'Ready';
 
-    // SCENARIO CROSS-TENANT
-    if (scenario === 'cross-tenant') {
-        
-        // CHECK 1: Managed Identities (Global Check)
-        if (res.identity && (res.identity.type === 'SystemAssigned' || res.identity.type.includes('SystemAssigned'))) {
-            issues.push(createIssue(
-                'Critical',
-                'System-Assigned Managed Identity',
-                'L\'identità viene ELIMINATA. Accesso a risorse protette fallirà.',
-                'Riabilitare Identity "On" dopo il move. Rieseguire script permessi RBAC.',
-                true
-            ));
-        }
-        if (res.identity && res.identity.type.includes('UserAssigned')) {
-            issues.push(createIssue(
-                'Warning',
-                'User-Assigned Managed Identity',
-                'La risorsa Identity si sposta, ma i permessi RBAC associati nel vecchio tenant sono persi.',
-                'Ricreare le Role Assignments nel nuovo tenant per la User Assigned Identity.',
-                false
-            ));
-        }
+    // Iteriamo su tutte le regole caricate dal JSON
+    const rules = rulesData as RuleDefinition[];
 
-        // CHECK 2: Specifiche Risorse
-        const specificRules = TENANT_RULES[res.type.toLowerCase()];
-        if (specificRules) {
-            issues.push(...specificRules(res));
+    rules.forEach(rule => {
+        if (evaluateRule(res, rule, scenario)) {
+            issues.push({
+                ruleId: rule.id,
+                severity: rule.severity,
+                message: rule.message,
+                impact: rule.impact,
+                workaround: rule.workaround,
+                downtimeRisk: rule.downtimeRisk,
+                refLink: rule.refLink
+            });
         }
-    }
+    });
 
-    // SCENARI ALTRI (Semplificati per brevità, ma usano createIssue)
-    if (scenario === 'cross-region') {
-        // ... Logica esistente adattata ...
-        if (res.type.toLowerCase() === 'microsoft.compute/virtualmachines') {
-            issues.push(createIssue('Info', 'Supportato da Resource Mover', 'Spostabile tra region.', 'Usare Azure Resource Mover.', false));
-        }
-    }
-
-    // CALCOLO SEVERITY
+    // Calcolo Severity Finale
     if (issues.some(i => i.severity === 'Blocker')) status = 'Blocker';
     else if (issues.some(i => i.severity === 'Critical')) status = 'Critical';
     else if (issues.some(i => i.severity === 'Warning')) status = 'Warning';
@@ -204,6 +157,7 @@ app.get('/api/analyze', async (req, res) => {
         res.json({ scenario, summary, details: analyzedResources });
 
     } catch (error: any) {
+        console.error("Errore Backend:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -213,5 +167,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server avviato su porta ${PORT}`);
+    console.log(`Server avviato su porta ${PORT} con Knowledge Base JSON caricata.`);
 });
