@@ -3,8 +3,13 @@ import cors from 'cors';
 import path from 'path';
 import { DefaultAzureCredential } from '@azure/identity';
 import { ResourceGraphClient } from '@azure/arm-resourcegraph';
-// Importiamo la Knowledge Base
-import rulesData from './rules.json'; 
+
+// --- IMPORTIAMO TUTTE LE KNOWLEDGE BASE ---
+import tenantRules from './rules.json';
+import moveRules from './rules-move.json';
+
+// Uniamo le regole in un unico array
+const rulesData = [...tenantRules, ...moveRules];
 
 const app = express();
 app.use(cors());
@@ -17,7 +22,6 @@ const PORT = process.env.PORT || 8080;
 type MigrationScenario = 'cross-tenant' | 'cross-subscription' | 'cross-resourcegroup' | 'cross-region';
 type Severity = 'Blocker' | 'Critical' | 'Warning' | 'Info';
 
-// Definizione della struttura del file JSON
 interface RuleDefinition {
     id: string;
     resourceType: string;
@@ -55,22 +59,21 @@ interface AnalyzedResource {
     issues: MigrationIssue[];
 }
 
-// --- ENGINE DI VALIDAZIONE REGOLE ---
+// --- ENGINE DI VALIDAZIONE ---
 
-// Helper per leggere proprietà annidate (es. "properties.siteAuthEnabled")
 function getNestedValue(obj: any, path: string): any {
     return path.split('.').reduce((acc, part) => acc && acc[part], obj);
 }
 
-// Verifica se una regola si applica a una risorsa
 function evaluateRule(res: any, rule: RuleDefinition, scenario: MigrationScenario): boolean {
-    // 1. Check Scenario
+    // 1. Filtro Scenario: La regola deve combaciare con lo scenario selezionato
+    // (es. se ho scelto 'cross-subscription', carico solo le regole con scenario 'cross-subscription')
     if (rule.scenario !== scenario) return false;
 
-    // 2. Check Resource Type (Supporta wildcard *)
+    // 2. Filtro Resource Type (Supporta wildcard *)
     if (rule.resourceType !== '*' && rule.resourceType.toLowerCase() !== res.type.toLowerCase()) return false;
 
-    // 3. Check Condition (Logica Dinamica)
+    // 3. Condizioni Logiche
     if (rule.condition) {
         const value = getNestedValue(res, rule.condition.field);
         
@@ -88,16 +91,16 @@ function evaluateRule(res: any, rule: RuleDefinition, scenario: MigrationScenari
         }
     }
 
-    return true; // Se non c'è condizione, la regola si applica per tipo/scenario
+    return true;
 }
 
 function analyzeResource(res: any, scenario: MigrationScenario): AnalyzedResource {
     const issues: MigrationIssue[] = [];
     let status: Severity | 'Ready' = 'Ready';
 
-    // Iteriamo su tutte le regole caricate dal JSON
     const rules = rulesData as RuleDefinition[];
 
+    // Applichiamo le regole
     rules.forEach(rule => {
         if (evaluateRule(res, rule, scenario)) {
             issues.push({
@@ -111,6 +114,12 @@ function analyzeResource(res: any, scenario: MigrationScenario): AnalyzedResourc
             });
         }
     });
+
+    // --- LOGICA DI FALLBACK PER LO SPOSTAMENTO ---
+    // Se siamo in scenario "cross-subscription" o "cross-resourcegroup" e non abbiamo trovato 
+    // nessuna regola specifica (né Blocker né Warning), assumiamo che la risorsa sia "Ready".
+    // Tuttavia, se è una risorsa molto esotica non in lista, potremmo voler dare un Info.
+    // Per ora, lasciamo "Ready" come default (silenzio assenso).
 
     // Calcolo Severity Finale
     if (issues.some(i => i.severity === 'Blocker')) status = 'Blocker';
@@ -136,6 +145,7 @@ app.get('/api/analyze', async (req, res) => {
         const credential = new DefaultAzureCredential();
         const client = new ResourceGraphClient(credential);
 
+        // Aggiungiamo 'sku' e 'properties' alla query per supportare le condizioni complesse
         const query = `
             Resources
             | project name, type, kind, location, tags, sku, identity, properties, id, resourceGroup
@@ -167,5 +177,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server avviato su porta ${PORT} con Knowledge Base JSON caricata.`);
+    console.log(`Server avviato su porta ${PORT}. Regole caricate: ${rulesData.length}`);
 });
