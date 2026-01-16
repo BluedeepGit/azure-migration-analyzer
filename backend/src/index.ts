@@ -67,24 +67,46 @@ function getNestedValue(obj: any, path: string): any {
 }
 
 function evaluateRule(res: any, rule: RuleDefinition, scenario: MigrationScenario): boolean {
-    // 1. Filtro Scenario: La regola deve combaciare con lo scenario selezionato
-    // (es. se ho scelto 'cross-subscription', carico solo le regole con scenario 'cross-subscription')
+    // 1. Filtro Scenario
     if (rule.scenario !== scenario) return false;
 
-    // 2. Filtro Resource Type (Supporta wildcard *)
-    if (rule.resourceType !== '*' && rule.resourceType.toLowerCase() !== res.type.toLowerCase()) return false;
+    // Normalizzazione
+    const resType = res.type.toLowerCase();
+    const ruleType = rule.resourceType.toLowerCase();
+    let typeMatches = false;
 
-    // 3. Condizioni Logiche
+    // 2. Matching Resource Type (Corretto)
+    if (ruleType === '*' || ruleType === resType) {
+        typeMatches = true;
+    } 
+    else if (ruleType.endsWith('/*')) {
+        const prefix = ruleType.slice(0, -2);
+        // FIX CRITICO: Controlliamo che il prefisso sia seguito da '/' o sia la stringa esatta.
+        // Questo evita che 'Microsoft.Sql' matchi 'Microsoft.SqlVirtualMachine'
+        if (resType.startsWith(prefix)) {
+            if (resType.length === prefix.length || resType[prefix.length] === '/') {
+                typeMatches = true;
+            }
+        }
+    }
+
+    // Se il tipo non corrisponde, usciamo subito
+    if (!typeMatches) return false;
+
+    // 3. Verifica Condizioni (FIX: Ora viene eseguita!)
     if (rule.condition) {
         const value = getNestedValue(res, rule.condition.field);
         
+        // Se il campo non esiste, la condizione non è soddisfatta (o valutiamo false per sicurezza)
+        if (value === undefined || value === null) return false;
+
         switch (rule.condition.operator) {
             case 'eq':
-                return value === rule.condition.value;
+                return String(value).toLowerCase() === String(rule.condition.value).toLowerCase();
             case 'neq':
-                return value !== rule.condition.value;
+                return String(value).toLowerCase() !== String(rule.condition.value).toLowerCase();
             case 'contains':
-                return typeof value === 'string' && value.includes(rule.condition.value);
+                return String(value).toLowerCase().includes(String(rule.condition.value).toLowerCase());
             case 'notEmpty':
                 return Array.isArray(value) && value.length > 0;
             default:
@@ -92,6 +114,7 @@ function evaluateRule(res: any, rule: RuleDefinition, scenario: MigrationScenari
         }
     }
 
+    // Se il tipo matcha e non ci sono condizioni (o sono soddisfatte), la regola si applica
     return true;
 }
 
