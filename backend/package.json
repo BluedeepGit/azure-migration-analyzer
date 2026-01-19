@@ -6,10 +6,12 @@
   "scripts": {
     "build": "tsc && cp azure-move-matrix.csv dist/",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.js",
+    "test": "ts-node tests/verify-rules.ts"
   },
   "dependencies": {
     "@azure/arm-resourcegraph": "^4.2.0",
+    "@azure/arm-resources-subscriptions": "^2.0.0",
     "@azure/identity": "^3.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",

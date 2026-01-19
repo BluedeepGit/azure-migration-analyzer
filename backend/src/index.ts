@@ -7,6 +7,15 @@ import { SubscriptionClient } from '@azure/arm-resources-subscriptions';
 import { analyzeResource, MigrationScenario } from './engine';
 import { runIntegrationTest } from './verifyService';
 
+// --- IMPORTIAMO TUTTE LE KNOWLEDGE BASE (Per i log) ---
+import tenantRules from './rules.json';
+import rgRules from './rules-rg.json';
+import subRules from './rules-sub.json';
+import regionRules from './rules-region.json';
+
+// Uniamo tutto in un unico array per i log (l'engine lo fa internamente, ma qui serve per debug)
+const rulesData: any[] = [...tenantRules, ...rgRules, ...subRules, ...regionRules];
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -17,10 +26,8 @@ const PORT = process.env.PORT || 8080;
 // --- HELPER PER LE CREDENZIALI ---
 function getCredential(auth: any) {
     if (auth && auth.tenantId && auth.clientId && auth.clientSecret) {
-        // Usa Service Principal esterno (App Registration)
         return new ClientSecretCredential(auth.tenantId, auth.clientId, auth.clientSecret);
     }
-    // Fallback su Managed Identity (Environment locale o Azure)
     return new DefaultAzureCredential();
 }
 
@@ -30,9 +37,10 @@ app.post('/api/login', async (req, res) => {
         const { auth } = req.body;
         const credential = getCredential(auth);
         
-        // Usiamo SubscriptionClient per listare le sottoscrizioni visibili
         const subClient = new SubscriptionClient(credential);
-        const subsList = [];
+        
+        // FIX: Definiamo esplicitamente il tipo dell'array
+        const subsList: any[] = [];
         
         for await (const sub of subClient.subscriptions.list()) {
             subsList.push({
@@ -49,13 +57,12 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// --- API: ANALYZE (Multi-Sub + Auth Dinamica) ---
+// --- API: ANALYZE ---
 app.post('/api/analyze', async (req, res) => {
     try {
         const { scenario, auth, subscriptions } = req.body;
         const selectedScenario = (scenario as MigrationScenario) || 'cross-tenant';
         
-        // Validazione Input
         if (!subscriptions || !Array.isArray(subscriptions) || subscriptions.length === 0) {
             return res.status(400).json({ error: "Nessuna sottoscrizione selezionata." });
         }
@@ -63,17 +70,18 @@ app.post('/api/analyze', async (req, res) => {
         const credential = getCredential(auth);
         const client = new ResourceGraphClient(credential);
 
-        // Query Azure Graph (filtrata per le subscription selezionate)
+        // Costruiamo la lista di subscription ID formattata per la query
+        const subsString = subscriptions.join("','");
+
         const query = `
             Resources
-            | where subscriptionId in ('${subscriptions.join("','")}')
+            | where subscriptionId in ('${subsString}')
             | project name, type, kind, location, tags, sku, identity, properties, id, resourceGroup, subscriptionId
             | order by subscriptionId asc, resourceGroup asc
         `;
 
-        console.log(`Analisi: ${selectedScenario}. Subs: ${subscriptions.length}`);
+        console.log(`Analisi: ${selectedScenario}. Subs target: ${subscriptions.length}`);
 
-        // Passiamo esplicitamente la lista di subscription al client Graph
         const result = await client.resources({ 
             query, 
             subscriptions: subscriptions 
@@ -113,5 +121,6 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`Server avviato su porta ${PORT} (Multi-Auth Enabled)`);
+    console.log(`Server avviato su porta ${PORT}`);
+    console.log(`Knowledge Base Stats: ${rulesData.length} rules loaded.`);
 });
