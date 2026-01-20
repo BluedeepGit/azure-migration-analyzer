@@ -87,7 +87,19 @@ app.post('/api/analyze', async (req, res) => {
             subscriptions: subscriptions 
         });
         
-        const analyzedResources = (result.data as any[]).map(r => analyzeResource(r, selectedScenario));
+        const analyzedResources = (result.data as any[]).map(r => {
+            // Esegue l'analisi tecnica
+            const analyzed = analyzeResource(r, selectedScenario);
+            
+            // COSTRUZIONE OGGETTO FINALE
+            // È fondamentale passare subscriptionId e subscriptionName esplicitamente
+            return {
+                ...analyzed, // id, name, type, location, status, issues
+                resourceGroup: r.resourceGroup, // Assicuriamoci che passi anche questo
+                subscriptionId: r.subscriptionId, // <--- ERA QUESTO CHE MANCAVA!
+                subscriptionName: r.subscriptionName || r.subscriptionId // Fallback se il join fallisce
+            };
+        });
 
         const summary = {
             total: analyzedResources.length,

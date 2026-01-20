@@ -169,10 +169,11 @@ function App() {
     setExpandedGroups(newExpandedGroups);
   };
 
-  // --- DATA PROCESSING & GROUPING (CORRETTO) ---
+// --- DATA PROCESSING & GROUPING (ROBUST VERSION) ---
   const groupedData = useMemo(() => {
     if (!data) return [];
     
+    // 1. Filtra
     const filtered = data.details.filter(r => 
       filterStatus === 'All' || 
       (filterStatus === 'Downtime' ? r.issues.some(i => i.downtimeRisk) : r.migrationStatus === filterStatus)
@@ -182,17 +183,31 @@ function App() {
     const tree: Record<string, { id: string, name: string, groups: Record<string, Resource[]>, worstStatus: Severity }> = {};
 
     filtered.forEach(res => {
-      // FIX: Usiamo il nome che arriva direttamente dal backend
-      const subName = res.subscriptionName || res.subscriptionId;
+      // LOGICA ROBUSTA PER IL NOME:
+      // 1. Cerca nella lista delle sottoscrizioni caricate al login (Fonte più affidabile)
+      const knownSub = availableSubs.find(s => s.subscriptionId === res.subscriptionId);
       
-      if (!tree[res.subscriptionId]) {
-        tree[res.subscriptionId] = { id: res.subscriptionId, name: subName, groups: {}, worstStatus: 'Ready' };
+      // 2. Se non c'è, usa quello tornato dal backend (Resource Graph Join)
+      // 3. Se non c'è, usa l'ID stesso come fallback
+      let subName = "Sottoscrizione Sconosciuta";
+      if (knownSub && knownSub.displayName) subName = knownSub.displayName;
+      else if (res.subscriptionName) subName = res.subscriptionName;
+      else if (res.subscriptionId) subName = res.subscriptionId;
+
+      // Se anche l'ID manca (caso impossibile se il backend funziona), usa placeholder
+      const subId = res.subscriptionId || "unknown-id";
+
+      if (!tree[subId]) {
+        tree[subId] = { id: subId, name: subName, groups: {}, worstStatus: 'Ready' };
       }
 
-      const subNode = tree[res.subscriptionId];
-      if (!subNode.groups[res.resourceGroup]) subNode.groups[res.resourceGroup] = [];
+      const subNode = tree[subId];
+      // Gestione Resource Group vuoto/nullo
+      const rgName = res.resourceGroup || "Risorse Globali/No-RG";
+
+      if (!subNode.groups[rgName]) subNode.groups[rgName] = [];
       
-      subNode.groups[res.resourceGroup].push(res);
+      subNode.groups[rgName].push(res);
 
       if (SEVERITY_WEIGHT[res.migrationStatus] > SEVERITY_WEIGHT[subNode.worstStatus]) {
         subNode.worstStatus = res.migrationStatus;
@@ -212,7 +227,7 @@ function App() {
       return { ...subNode, groupList };
     }).sort((a, b) => SEVERITY_WEIGHT[b.worstStatus as string] - SEVERITY_WEIGHT[a.worstStatus as string]);
 
-  }, [data, filterStatus]);
+  }, [data, filterStatus, availableSubs]);
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
