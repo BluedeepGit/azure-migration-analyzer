@@ -1,14 +1,12 @@
-// backend/src/engine.ts
 import tenantRules from './rules.json';
 import rgRules from './rules-rg.json';
 import subRules from './rules-sub.json';
 import regionRules from './rules-region.json';
 
-// Uniamo tutte le regole
 const rulesData: any[] = [...tenantRules, ...rgRules, ...subRules, ...regionRules];
 
 export type MigrationScenario = 'cross-tenant' | 'cross-subscription' | 'cross-resourcegroup' | 'cross-region';
-export type Severity = 'Blocker' | 'Critical' | 'Warning' | 'Info';
+export type Severity = 'Blocker' | 'Critical' | 'Warning' | 'Info' | 'Ready';
 
 export interface AnalyzedResource {
     id: string;
@@ -16,6 +14,8 @@ export interface AnalyzedResource {
     type: string;
     resourceGroup: string;
     location: string;
+    subscriptionId: string;   // Campo obbligatorio
+    subscriptionName: string; // Campo obbligatorio
     migrationStatus: Severity | 'Ready';
     issues: any[];
 }
@@ -25,16 +25,14 @@ function getNestedValue(obj: any, path: string): any {
     return path.split('.').reduce((acc, part) => (acc && acc[part] !== undefined) ? acc[part] : undefined, obj);
 }
 
-// Funzione di Matching (La stessa che abbiamo perfezionato)
+// ... (la funzione evaluateRule rimane identica a prima) ...
 export function evaluateRule(res: any, rule: any, scenario: MigrationScenario): boolean {
-    // 1. Filtro Scenario e Ereditarietà
     let scenarioMatch = false;
     if (rule.scenario === scenario) scenarioMatch = true;
     else if (scenario === 'cross-resourcegroup' && rule.scenario === 'cross-subscription') scenarioMatch = true;
     
     if (!scenarioMatch) return false;
 
-    // 2. Matching Tipo Risorsa
     const resType = res.type.toLowerCase();
     const ruleType = rule.resourceType.toLowerCase();
     let typeMatches = false;
@@ -43,7 +41,6 @@ export function evaluateRule(res: any, rule: any, scenario: MigrationScenario): 
         typeMatches = true;
     } else if (ruleType.endsWith('/*')) {
         const prefix = ruleType.slice(0, -2);
-        // Fix: Prefisso esatto seguito da fine stringa o '/'
         if (resType.startsWith(prefix)) {
              if (resType.length === prefix.length || resType[prefix.length] === '/') {
                 typeMatches = true;
@@ -53,10 +50,9 @@ export function evaluateRule(res: any, rule: any, scenario: MigrationScenario): 
 
     if (!typeMatches) return false;
 
-    // 3. Verifica Condizioni
     if (rule.condition) {
         const value = getNestedValue(res, rule.condition.field);
-        if (value === undefined || value === null) return false; // Se manca la proprietà, la regola specifica non si applica
+        if (value === undefined || value === null) return false;
 
         const ruleVal = String(rule.condition.value).toLowerCase();
         const actualVal = String(value).toLowerCase();
@@ -69,11 +65,10 @@ export function evaluateRule(res: any, rule: any, scenario: MigrationScenario): 
             default: return false;
         }
     }
-
     return true;
 }
 
-// Funzione Principale di Analisi
+// FIX: Ora la funzione costruisce l'intero oggetto e controlla i campi mancanti
 export function analyzeResource(res: any, scenario: MigrationScenario): AnalyzedResource {
     const issues: any[] = [];
     let status: Severity | 'Ready' = 'Ready';
@@ -97,12 +92,18 @@ export function analyzeResource(res: any, scenario: MigrationScenario): Analyzed
     else if (issues.some(i => i.severity === 'Warning')) status = 'Warning';
     else if (issues.some(i => i.severity === 'Info')) status = 'Info';
 
+    // Recupero sicuro dei campi (Azure Graph a volte usa casing diversi?)
+    const subId = res.subscriptionId || res.subscriptionid || 'unknown-sub-id';
+    const subName = res.subscriptionName || res.subscriptionname || subId; // Fallback su ID se nome manca
+
     return {
-        id: res.id || 'mock-id',
-        name: res.name || 'mock-resource',
-        type: res.type,
-        resourceGroup: res.resourceGroup || 'mock-rg',
-        location: res.location || 'westeurope',
+        id: res.id || 'unknown-id',
+        name: res.name || 'Unknown Resource',
+        type: res.type || 'unknown/type',
+        resourceGroup: res.resourceGroup || res.resourcegroup || 'No Resource Group',
+        location: res.location || 'unknown',
+        subscriptionId: subId,
+        subscriptionName: subName,
         migrationStatus: status,
         issues
     };

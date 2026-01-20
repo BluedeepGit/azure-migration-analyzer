@@ -182,19 +182,26 @@ function App() {
     // Struttura dati per il rendering
     const tree: Record<string, { id: string, name: string, groups: Record<string, Resource[]>, worstStatus: Severity }> = {};
 
-    filtered.forEach(res => {
-      // LOGICA ROBUSTA PER IL NOME:
-      // 1. Cerca nella lista delle sottoscrizioni caricate al login (Fonte più affidabile)
-      const knownSub = availableSubs.find(s => s.subscriptionId === res.subscriptionId);
+filtered.forEach(res => {
+      // LOGICA NOME (Con Fallback aggressivo)
+      let subName = res.subscriptionName; // Dal backend
       
-      // 2. Se non c'è, usa quello tornato dal backend (Resource Graph Join)
-      // 3. Se non c'è, usa l'ID stesso come fallback
-      let subName = "Sottoscrizione Sconosciuta";
-      if (knownSub && knownSub.displayName) subName = knownSub.displayName;
-      else if (res.subscriptionName) subName = res.subscriptionName;
-      else if (res.subscriptionId) subName = res.subscriptionId;
+      // Se manca dal backend, cerchiamo nella lista disponibile
+      if (!subName || subName.trim() === '') {
+          const knownSub = availableSubs.find(s => s.subscriptionId === res.subscriptionId);
+          if (knownSub) subName = knownSub.displayName;
+      }
 
-      // Se anche l'ID manca (caso impossibile se il backend funziona), usa placeholder
+      // Se ancora manca, usiamo l'ID
+      if (!subName || subName.trim() === '') {
+          subName = res.subscriptionId;
+      }
+
+      // Se ancora manca (dati corrotti?), placeholder
+      if (!subName || subName.trim() === '') {
+          subName = "Sottoscrizione (Nome non rilevato)";
+      }
+
       const subId = res.subscriptionId || "unknown-id";
 
       if (!tree[subId]) {

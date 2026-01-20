@@ -70,36 +70,27 @@ app.post('/api/analyze', async (req, res) => {
         const credential = getCredential(auth);
         const client = new ResourceGraphClient(credential);
 
-        // Costruiamo la lista di subscription ID formattata per la query
         const subsString = subscriptions.join("','");
 
+        // Query Identica a prima
         const query = `
             Resources
             | where subscriptionId in ('${subsString}')
-            | project name, type, kind, location, tags, sku, identity, properties, id, resourceGroup, subscriptionId
+            | join kind=leftouter (
+                ResourceContainers
+                | where type == 'microsoft.resources/subscriptions'
+                | project subscriptionId, subscriptionName = name
+            ) on subscriptionId
+            | project name, type, kind, location, tags, sku, identity, properties, id, resourceGroup, subscriptionId, subscriptionName
             | order by subscriptionId asc, resourceGroup asc
         `;
 
-        console.log(`Analisi: ${selectedScenario}. Subs target: ${subscriptions.length}`);
+        console.log(`Analisi: ${selectedScenario}.`);
 
-        const result = await client.resources({ 
-            query, 
-            subscriptions: subscriptions 
-        });
+        const result = await client.resources({ query, subscriptions: subscriptions });
         
-        const analyzedResources = (result.data as any[]).map(r => {
-            // Esegue l'analisi tecnica
-            const analyzed = analyzeResource(r, selectedScenario);
-            
-            // COSTRUZIONE OGGETTO FINALE
-            // È fondamentale passare subscriptionId e subscriptionName esplicitamente
-            return {
-                ...analyzed, // id, name, type, location, status, issues
-                resourceGroup: r.resourceGroup, // Assicuriamoci che passi anche questo
-                subscriptionId: r.subscriptionId, // <--- ERA QUESTO CHE MANCAVA!
-                subscriptionName: r.subscriptionName || r.subscriptionId // Fallback se il join fallisce
-            };
-        });
+        // ORA È MOLTO PIÙ SEMPLICE: Passiamo l'oggetto raw e ci fidiamo di engine.ts
+        const analyzedResources = (result.data as any[]).map(r => analyzeResource(r, selectedScenario));
 
         const summary = {
             total: analyzedResources.length,
