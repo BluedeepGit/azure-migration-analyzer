@@ -8,14 +8,6 @@ import { ResourceManagementClient } from '@azure/arm-resources';
 import { analyzeResource, MigrationScenario } from './engine';
 import { runIntegrationTest } from './verifyService';
 
-// Import KB
-import tenantRules from './rules.json';
-import rgRules from './rules-rg.json';
-import subRules from './rules-sub.json';
-import regionRules from './rules-region.json';
-
-const rulesData: any[] = [...tenantRules, ...rgRules, ...subRules, ...regionRules];
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -30,7 +22,7 @@ function getCredential(auth: any) {
     return new DefaultAzureCredential();
 }
 
-// --- API: LOGIN ---
+// --- API: LOGIN & SUBSCRIPTIONS ---
 app.post('/api/login', async (req, res) => {
     try {
         const { auth } = req.body;
@@ -50,7 +42,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// --- API: LIST RESOURCE GROUPS (NUOVO) ---
+// --- API: LIST RESOURCE GROUPS ---
 app.post('/api/resource-groups', async (req, res) => {
     try {
         const { auth, subscriptions } = req.body;
@@ -75,61 +67,93 @@ app.post('/api/resource-groups', async (req, res) => {
     }
 });
 
-// --- API: LIST REGIONS (NUOVO - Semplificato) ---
-app.get('/api/regions', (req, res) => {
-    // Lista statica delle region principali per la UI (o si può fare dynamic fetch)
-    const regions = [
-        "westeurope", "northeurope", "italynorth", "germanywestcentral", "francecentral", "uksouth",
-        "eastus", "eastus2", "westus", "westus2", "centralus", "southeastasia", "japaneast"
-    ];
-    res.json(regions.sort());
+// --- API: LIST REGIONS (REAL AZURE API) ---
+// Ref: https://learn.microsoft.com/en-us/rest/api/resources/subscriptions/list-locations
+app.post('/api/regions', async (req, res) => {
+    try {
+        const { auth, subscriptionId } = req.body;
+        if (!subscriptionId) return res.status(400).json({ error: "Subscription ID richiesto per listare le region." });
+
+        const credential = getCredential(auth);
+        const client = new SubscriptionClient(credential);
+        
+        const locations = [];
+        // listLocations restituisce tutte le region disponibili per la sub
+        for await (const loc of client.subscriptions.listLocations(subscriptionId)) {
+            locations.push({
+                name: loc.name, // es. "westeurope" (ID tecnico)
+                displayName: loc.displayName // es. "West Europe" (Human readable)
+            });
+        }
+        
+        // Ordina alfabeticamente per display name
+        locations.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''));
+        
+        res.json(locations);
+    } catch (error: any) {
+        console.error("Region Fetch Error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// --- HELPER: Validazione Region Capabilities ---
+// --- HELPER: Validazione Region Capabilities (Provider Check) ---
 async function checkRegionAvailability(credential: any, subscriptionId: string, resources: any[], targetRegion: string) {
     if (!targetRegion) return resources;
+    
+    // Normalizziamo la region target (rimuovi spazi, lowercase) per confronto sicuro
+    const targetClean = targetRegion.toLowerCase().replace(/ /g, '');
+    
+    console.log(`Verifica disponibilità servizi in: ${targetClean} per la sub: ${subscriptionId}`);
 
     const client = new ResourceManagementClient(credential, subscriptionId);
-    const providers = await client.providers.list();
     
     // Mappa Provider -> ResourceTypes -> Locations[]
+    // Esempio: { 'microsoft.compute': { 'virtualmachines': ['westeurope', 'eastus'] } }
     const providerMap: Record<string, Record<string, string[]>> = {};
     
-    for await (const p of providers) {
+    // Scarichiamo la lista completa dei provider registrati e le loro location
+    for await (const p of client.providers.list()) {
         if (!p.namespace) continue;
-        providerMap[p.namespace.toLowerCase()] = {};
+        const namespace = p.namespace.toLowerCase();
+        providerMap[namespace] = {};
+        
         p.resourceTypes?.forEach(rt => {
             if (rt.resourceType && rt.locations) {
-                providerMap[p.namespace!.toLowerCase()][rt.resourceType.toLowerCase()] = rt.locations.map(l => l.toLowerCase().replace(/ /g, ''));
+                // Normalizza le location ritornate da Azure
+                providerMap[namespace][rt.resourceType.toLowerCase()] = rt.locations.map(l => l.toLowerCase().replace(/ /g, ''));
             }
         });
     }
 
-    // Applica controllo
+    // Applica controllo su ogni risorsa
     return resources.map(res => {
-        const [provider, ...typeParts] = res.type.split('/');
-        const resourceType = typeParts.join('/');
+        const parts = res.type.split('/');
+        if (parts.length < 2) return res;
+
+        const provider = parts[0].toLowerCase();
+        // Il resource type può essere annidato (es. sites/slots), prendiamo tutto dopo il provider
+        const resourceType = parts.slice(1).join('/').toLowerCase();
         
         // Cerca se il provider supporta la region target
-        const supportedLocations = providerMap[provider.toLowerCase()]?.[resourceType.toLowerCase()];
+        // Nota: A volte Graph ritorna tipi che non matchano perfettamente i provider API (es. case sensitive o sottotipi),
+        // facciamo un check "best effort".
+        const supportedLocations = providerMap[provider]?.[resourceType];
         
-        // Normalizza target region
-        const targetClean = targetRegion.toLowerCase().replace(/ /g, '');
-
-        if (supportedLocations && !supportedLocations.includes(targetClean)) {
-            // INIETTA ERRORE CRITICO
-            res.injectedIssue = {
-                severity: 'Blocker',
-                message: `Non disponibile in ${targetRegion}`,
-                impact: `Il tipo di risorsa '${res.type}' non è disponibile nella regione di destinazione.`,
-                workaround: `Scegliere una regione diversa o un servizio alternativo.`,
-                downtimeRisk: true
-            };
+        if (supportedLocations) {
+            if (!supportedLocations.includes(targetClean)) {
+                // INIETTA ERRORE CRITICO: Il servizio non esiste nella region
+                res.injectedIssue = {
+                    severity: 'Blocker',
+                    message: `Servizio non disponibile in ${targetRegion}`,
+                    impact: `Il Resource Provider '${res.type}' non è disponibile nella region di destinazione selezionata. Impossibile migrare.`,
+                    workaround: `Selezionare una regione diversa (es. ${supportedLocations.slice(0, 3).join(', ')}...) o un servizio alternativo.`,
+                    downtimeRisk: true
+                };
+            }
         }
         return res;
     });
 }
-
 
 // --- API: ANALYZE ---
 app.post('/api/analyze', async (req, res) => {
@@ -137,15 +161,15 @@ app.post('/api/analyze', async (req, res) => {
         const { scenario, auth, subscriptions, resourceGroups, targetRegion } = req.body;
         const selectedScenario = (scenario as MigrationScenario) || 'cross-tenant';
         
-        if (!subscriptions || subscriptions.length === 0) return res.status(400).json({ error: "Nessuna sottoscrizione." });
+        if (!subscriptions || !Array.isArray(subscriptions) || subscriptions.length === 0) {
+            return res.status(400).json({ error: "Nessuna sottoscrizione selezionata." });
+        }
 
         const credential = getCredential(auth);
         const client = new ResourceGraphClient(credential);
 
-        // Costruzione Query Dinamica
+        // 1. Costruzione Query Graph
         let whereClause = `where subscriptionId in ('${subscriptions.join("','")}')`;
-        
-        // Filtro Resource Group (Se presente)
         if (resourceGroups && resourceGroups.length > 0) {
             whereClause += ` | where resourceGroup in ('${resourceGroups.join("','")}')`;
         }
@@ -162,24 +186,22 @@ app.post('/api/analyze', async (req, res) => {
             | order by subscriptionId asc, resourceGroup asc
         `;
 
-        console.log(`Analisi: ${selectedScenario}. RGs: ${resourceGroups?.length || 'ALL'}. Region: ${targetRegion || 'N/A'}`);
-
         const result = await client.resources({ query, subscriptions });
         let rawResources = result.data as any[];
 
-        // --- REGION CAPABILITY CHECK (Solo se scenario Region) ---
+        // 2. Region Capability Check (se richiesto)
         if (selectedScenario === 'cross-region' && targetRegion) {
-            // Usiamo la prima sottoscrizione per scaricare la mappa dei provider (assumiamo siano uguali)
+            // Verifica usando la prima subscription (assumiamo che i provider registrati siano simili)
             rawResources = await checkRegionAvailability(credential, subscriptions[0], rawResources, targetRegion);
         }
 
-        // --- ANALISI MOTORE ---
+        // 3. Analisi Regole (Engine)
         const analyzedResources = rawResources.map(r => {
             const analysis = analyzeResource(r, selectedScenario);
             
-            // Se c'è un errore iniettato dalla validazione regionale, aggiungilo
+            // Uniamo l'issue iniettata (Region Availability) se presente
             if (r.injectedIssue) {
-                analysis.issues.unshift(r.injectedIssue); // Mettilo in cima
+                analysis.issues.unshift(r.injectedIssue);
                 analysis.migrationStatus = 'Blocker';
             }
 
@@ -208,7 +230,7 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// ... (Diagnostica e Listen rimangono uguali) ...
+// ... (Resto del file uguale)
 app.get('/api/admin/run-test', (req, res) => {
     try {
         const results = runIntegrationTest();
