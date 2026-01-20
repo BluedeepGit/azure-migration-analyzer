@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 
 // --- TIPI ---
@@ -18,15 +18,25 @@ interface Subscription {
   tenantId: string;
 }
 
+interface Issue {
+  severity: string;
+  message: string;
+  impact: string;
+  workaround: string;
+  downtimeRisk: boolean;
+  refLink?: string;
+}
+
 interface Resource {
   id: string;
   name: string;
   type: string;
   resourceGroup: string;
-  subscriptionId: string; // Nuovo campo
+  subscriptionId: string;
+  subscriptionName?: string; // <--- NUOVO CAMPO DAL BACKEND
   location: string;
   migrationStatus: Severity;
-  issues: any[];
+  issues: Issue[];
 }
 
 interface Summary {
@@ -38,11 +48,31 @@ interface Summary {
   downtimeRisks: number;
 }
 
+interface ApiResponse {
+  scenario: MigrationScenario;
+  summary: Summary;
+  details: Resource[];
+}
+
+interface TestFailure {
+    row: number;
+    resource: string;
+    scenario: string;
+    expected: string;
+    got: string;
+}
+  
+interface TestResult {
+    passed: number;
+    failed: number;
+    total: number;
+    failures: TestFailure[];
+}
+
 // --- HELPER SEVERITY ---
 const SEVERITY_WEIGHT: Record<string, number> = { 'Blocker': 5, 'Critical': 4, 'Warning': 3, 'Info': 2, 'Ready': 1 };
 
 function App() {
-  // --- STATI APPLICAZIONE ---
   const [view, setView] = useState<'config' | 'report' | 'test'>('config');
   
   // Auth & Config
@@ -53,7 +83,7 @@ function App() {
 
   // Report Data
   const [scenario, setScenario] = useState<MigrationScenario>('cross-tenant');
-  const [data, setData] = useState<{ summary: Summary, details: Resource[] } | null>(null);
+  const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -62,12 +92,12 @@ function App() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<string>('All');
 
-  // Test Data
-  const [testResult, setTestResult] = useState<any>(null);
+  // Test
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [testLoading, setTestLoading] = useState(false);
 
   // --- AZIONI ---
 
-  // 1. Connessione e Recupero Sottoscrizioni
   const connectToAzure = async () => {
     setIsConnecting(true);
     setError('');
@@ -75,7 +105,6 @@ function App() {
       const payload = auth.useManagedIdentity ? {} : { auth };
       const res = await axios.post('/api/login', payload);
       setAvailableSubs(res.data.subscriptions);
-      // Seleziona tutte di default
       setSelectedSubs(res.data.subscriptions.map((s: any) => s.subscriptionId));
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
@@ -84,7 +113,6 @@ function App() {
     }
   };
 
-  // 2. Analisi Risorse
   const runAnalysis = async () => {
     if (selectedSubs.length === 0) {
       setError("Seleziona almeno una sottoscrizione.");
@@ -102,24 +130,23 @@ function App() {
       };
       const response = await axios.post('/api/analyze', payload);
       setData(response.data);
-      // Espandi tutto di default
       expandAll(true, response.data.details);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
-      setView('config'); // Torna alla config in caso di errore
+      setView('config'); 
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. Esegui Integration Test
-  const runTest = async () => {
-    setLoading(true);
+  const runDiagnostics = async () => {
+    setTestLoading(true);
+    setTestResult(null);
     try {
       const res = await axios.get('/api/admin/run-test');
       setTestResult(res.data);
     } catch (err: any) { alert(err.message); } 
-    finally { setLoading(false); }
+    finally { setTestLoading(false); }
   };
 
   // --- LOGICA UI ---
@@ -132,37 +159,34 @@ function App() {
   const expandAll = (expand: boolean, resources: Resource[] = []) => {
     const newExpandedSubs: Record<string, boolean> = {};
     const newExpandedGroups: Record<string, boolean> = {};
-    
     const targetResources = resources.length > 0 ? resources : (data?.details || []);
     
     targetResources.forEach(r => {
       newExpandedSubs[r.subscriptionId] = expand;
       newExpandedGroups[`${r.subscriptionId}-${r.resourceGroup}`] = expand;
     });
-    
     setExpandedSubs(newExpandedSubs);
     setExpandedGroups(newExpandedGroups);
   };
 
-  // --- DATA PROCESSING & GROUPING ---
+  // --- DATA PROCESSING & GROUPING (CORRETTO) ---
   const groupedData = useMemo(() => {
     if (!data) return [];
     
-    // 1. Filtra
     const filtered = data.details.filter(r => 
       filterStatus === 'All' || 
       (filterStatus === 'Downtime' ? r.issues.some(i => i.downtimeRisk) : r.migrationStatus === filterStatus)
     );
 
-    // 2. Raggruppa: Sub -> RG -> Resources
-    const tree: Record<string, { meta: Subscription, groups: Record<string, Resource[]>, worstStatus: Severity }> = {};
+    // Struttura dati per il rendering
+    const tree: Record<string, { id: string, name: string, groups: Record<string, Resource[]>, worstStatus: Severity }> = {};
 
     filtered.forEach(res => {
-      // Trova metadati sub
-      const subMeta = availableSubs.find(s => s.subscriptionId === res.subscriptionId) || { subscriptionId: res.subscriptionId, displayName: res.subscriptionId, tenantId: '' };
+      // FIX: Usiamo il nome che arriva direttamente dal backend
+      const subName = res.subscriptionName || res.subscriptionId;
       
       if (!tree[res.subscriptionId]) {
-        tree[res.subscriptionId] = { meta: subMeta, groups: {}, worstStatus: 'Ready' };
+        tree[res.subscriptionId] = { id: res.subscriptionId, name: subName, groups: {}, worstStatus: 'Ready' };
       }
 
       const subNode = tree[res.subscriptionId];
@@ -170,17 +194,14 @@ function App() {
       
       subNode.groups[res.resourceGroup].push(res);
 
-      // Aggiorna worst status della Sub
       if (SEVERITY_WEIGHT[res.migrationStatus] > SEVERITY_WEIGHT[subNode.worstStatus]) {
         subNode.worstStatus = res.migrationStatus;
       }
     });
 
-    // Converti in array ordinato per render
     return Object.values(tree).map(subNode => {
       const groupList = Object.keys(subNode.groups).map(rgName => {
         const resources = subNode.groups[rgName];
-        // Worst status del RG
         let rgWorst = 'Ready';
         resources.forEach(r => {
            if (SEVERITY_WEIGHT[r.migrationStatus] > SEVERITY_WEIGHT[rgWorst]) rgWorst = r.migrationStatus;
@@ -191,14 +212,13 @@ function App() {
       return { ...subNode, groupList };
     }).sort((a, b) => SEVERITY_WEIGHT[b.worstStatus as string] - SEVERITY_WEIGHT[a.worstStatus as string]);
 
-  }, [data, filterStatus, availableSubs]);
+  }, [data, filterStatus]);
 
-  // Helper Badge
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
       'Blocker': 'bg-red-800 text-white', 'Critical': 'bg-red-100 text-red-800 border-red-200',
       'Warning': 'bg-orange-100 text-orange-800 border-orange-200', 'Info': 'bg-blue-100 text-blue-800 border-blue-200',
-      'Ready': 'bg-green-100 text-green-800 border-green-200'
+      'Ready': 'bg-green-100 text-green-700 border-green-200'
     };
     return <span className={`px-2 py-0.5 rounded border text-xs font-bold uppercase ${styles[status]}`}>{status}</span>;
   };
@@ -224,7 +244,6 @@ function App() {
         {/* --- VISTA CONFIGURAZIONE --- */}
         {view === 'config' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Box 1: Credenziali */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <span className="bg-blue-100 text-blue-700 w-6 h-6 flex items-center justify-center rounded-full text-xs">1</span>
@@ -250,7 +269,6 @@ function App() {
               {error && <div className="mt-3 text-xs text-red-600 bg-red-50 p-2 rounded">{error}</div>}
             </div>
 
-            {/* Box 2: Selezione Sottoscrizioni */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex flex-col">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <span className="bg-blue-100 text-blue-700 w-6 h-6 flex items-center justify-center rounded-full text-xs">2</span>
@@ -302,7 +320,6 @@ function App() {
         {/* --- VISTA REPORT --- */}
         {view === 'report' && data && (
           <div className="animate-fade-in">
-            {/* KPI */}
             <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
                 {[
                    {l:'Total', v: data.summary.total, c:'blue'},
@@ -317,46 +334,44 @@ function App() {
                 ))}
             </div>
 
-            {/* CONTROLLI LISTA */}
             <div className="flex justify-between items-center mb-4">
                 <div className="flex gap-2">
                     <button onClick={() => expandAll(true)} className="text-xs bg-white border px-3 py-1 rounded hover:bg-gray-50">Expand All</button>
                     <button onClick={() => expandAll(false)} className="text-xs bg-white border px-3 py-1 rounded hover:bg-gray-50">Collapse All</button>
                 </div>
                 <div className="text-sm text-gray-500">
-                    Filtro: <b>{filterStatus}</b>
+                    Filtro: <b>{filterStatus}</b> | Scenario: <b>{data.scenario}</b>
                 </div>
             </div>
 
-            {/* GERARCHIA: SUBSCRIPTION -> RG -> RESOURCES */}
             <div className="space-y-6">
                 {groupedData.map((subNode: any) => (
-                    <div key={subNode.meta.subscriptionId} className="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
-                        {/* BOX SOTTOSCRIZIONE */}
+                    <div key={subNode.id} className="bg-white border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+                        
+                        {/* HEADER SOTTOSCRIZIONE (CON NOME CORRETTO) */}
                         <div 
-                           onClick={() => setExpandedSubs({...expandedSubs, [subNode.meta.subscriptionId]: !expandedSubs[subNode.meta.subscriptionId]})}
+                           onClick={() => setExpandedSubs({...expandedSubs, [subNode.id]: !expandedSubs[subNode.id]})}
                            className="bg-gray-100 px-4 py-3 flex justify-between items-center cursor-pointer border-b border-gray-200 hover:bg-gray-200"
                         >
                             <div className="flex items-center gap-3">
                                 <span className="font-mono text-xs bg-gray-300 px-2 py-1 rounded text-gray-700">SUB</span>
                                 <div>
-                                    <div className="font-bold text-gray-800">{subNode.meta.displayName}</div>
-                                    <div className="text-xs text-gray-500 font-mono">{subNode.meta.subscriptionId}</div>
+                                    <div className="font-bold text-gray-800 text-lg">{subNode.name}</div>
+                                    <div className="text-xs text-gray-500 font-mono">{subNode.id}</div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4">
-                                {getStatusBadge(subNode.worstStatus as string)}
-                                <svg className={`w-5 h-5 text-gray-500 transform transition-transform ${expandedSubs[subNode.meta.subscriptionId] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                {getStatusBadge(subNode.worstStatus)}
+                                <svg className={`w-5 h-5 text-gray-500 transform transition-transform ${expandedSubs[subNode.id] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </div>
                         </div>
 
-                        {/* LISTA RG NELLA SUBSCRIPTION */}
-                        {expandedSubs[subNode.meta.subscriptionId] && (
+                        {expandedSubs[subNode.id] && (
                             <div className="p-4 bg-gray-50 space-y-3">
                                 {subNode.groupList.map((rg: any) => (
                                     <div key={rg.name} className="border border-gray-200 rounded-md bg-white overflow-hidden">
                                         <div 
-                                            onClick={() => setExpandedGroups({...expandedGroups, [`${subNode.meta.subscriptionId}-${rg.name}`]: !expandedGroups[`${subNode.meta.subscriptionId}-${rg.name}`]})}
+                                            onClick={() => setExpandedGroups({...expandedGroups, [`${subNode.id}-${rg.name}`]: !expandedGroups[`${subNode.id}-${rg.name}`]})}
                                             className="px-4 py-2 flex justify-between items-center cursor-pointer hover:bg-blue-50"
                                         >
                                             <div className="flex items-center gap-2">
@@ -367,7 +382,7 @@ function App() {
                                             {getStatusBadge(rg.worstStatus)}
                                         </div>
 
-                                        {expandedGroups[`${subNode.meta.subscriptionId}-${rg.name}`] && (
+                                        {expandedGroups[`${subNode.id}-${rg.name}`] && (
                                             <div className="border-t border-gray-100">
                                                 {rg.resources.map((res: any) => (
                                                     <div key={res.id} className="p-3 border-b border-gray-50 last:border-0 hover:bg-yellow-50 flex gap-4">
@@ -383,6 +398,7 @@ function App() {
                                                                         <li key={idx}>
                                                                             <span className="font-bold text-gray-800">{i.message}</span> - {i.impact}
                                                                             {i.workaround && <div className="text-xs bg-slate-100 p-1 mt-1 font-mono text-slate-700">FIX: {i.workaround}</div>}
+                                                                            {i.refLink && <a href={i.refLink} target="_blank" className="text-blue-500 hover:underline text-xs ml-2">[Doc]</a>}
                                                                         </li>
                                                                     ))}
                                                                 </ul>
@@ -406,13 +422,27 @@ function App() {
         {view === 'test' && (
           <div className="bg-white p-6 rounded shadow text-center">
             <h2 className="text-xl font-bold mb-4">Diagnostica Motore Regole</h2>
-            <button onClick={runTest} disabled={loading} className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 disabled:opacity-50">
-                {loading ? 'Esecuzione...' : 'Lancia Integration Test'}
+            <button onClick={runDiagnostics} disabled={testLoading} className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 disabled:opacity-50">
+                {testLoading ? 'Esecuzione...' : 'Lancia Integration Test'}
             </button>
             {testResult && (
-                <div className="mt-6 text-left border p-4 rounded bg-gray-50">
-                    <pre className="text-xs overflow-auto max-h-96">{JSON.stringify(testResult, null, 2)}</pre>
-                </div>
+                 <div className="mt-6 text-left">
+                     <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="bg-blue-50 p-3 rounded text-center">Tests: <b>{testResult.total}</b></div>
+                        <div className="bg-green-50 p-3 rounded text-center text-green-700">Pass: <b>{testResult.passed}</b></div>
+                        <div className="bg-red-50 p-3 rounded text-center text-red-700">Fail: <b>{testResult.failed}</b></div>
+                     </div>
+                     {testResult.failed > 0 && (
+                         <div className="border p-4 rounded bg-gray-50 max-h-96 overflow-y-auto">
+                            {testResult.failures.map((f: any, i: number) => (
+                                <div key={i} className="text-xs mb-2 border-b pb-1">
+                                    <span className="font-bold">{f.resource}</span> ({f.scenario}): 
+                                    Expected <span className="text-green-600">{f.expected}</span>, Got <span className="text-red-600">{f.got}</span>
+                                </div>
+                            ))}
+                         </div>
+                     )}
+                 </div>
             )}
           </div>
         )}
