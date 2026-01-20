@@ -351,18 +351,41 @@ function App() {
                         {/* HEADER SOTTOSCRIZIONE (CON NOME CORRETTO) */}
                         <div 
                            onClick={() => setExpandedSubs({...expandedSubs, [subNode.id]: !expandedSubs[subNode.id]})}
-                           className="bg-gray-100 px-4 py-3 flex justify-between items-center cursor-pointer border-b border-gray-200 hover:bg-gray-200"
+                           className="bg-gray-50 px-4 py-4 flex justify-between items-center cursor-pointer border-b border-gray-200 hover:bg-white transition-colors"
                         >
-                            <div className="flex items-center gap-3">
-                                <span className="font-mono text-xs bg-gray-300 px-2 py-1 rounded text-gray-700">SUB</span>
+                            <div className="flex items-center gap-4">
+                                {/* Icona Subscription Azure-style (Chiave) */}
+                                <div className="p-2 bg-yellow-100 text-yellow-700 rounded-lg border border-yellow-200">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                    </svg>
+                                </div>
+                                
                                 <div>
-                                    <div className="font-bold text-gray-800 text-lg">{subNode.name}</div>
-                                    <div className="text-xs text-gray-500 font-mono">{subNode.id}</div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-200 px-2 py-0.5 rounded">Sottoscrizione</span>
+                                    </div>
+                                    <div className="font-bold text-gray-900 text-xl mt-0.5">{subNode.name}</div>
+                                    <div className="text-xs text-gray-400 font-mono flex items-center gap-1">
+                                        <span className="select-all">ID: {subNode.id}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4">
+
+                            <div className="flex items-center gap-6">
+                                {/* KPI Rapidi per la Sottoscrizione */}
+                                <div className="hidden md:flex gap-4 text-right">
+                                    <div>
+                                        <div className="text-[10px] uppercase text-gray-400 font-bold">Risorse</div>
+                                        <div className="font-bold text-gray-700">{subNode.groupList.reduce((acc:any, g:any) => acc + g.resources.length, 0)}</div>
+                                    </div>
+                                </div>
+
                                 {getStatusBadge(subNode.worstStatus)}
-                                <svg className={`w-5 h-5 text-gray-500 transform transition-transform ${expandedSubs[subNode.id] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                
+                                <svg className={`w-6 h-6 text-gray-400 transform transition-transform duration-200 ${expandedSubs[subNode.id] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
                             </div>
                         </div>
 
