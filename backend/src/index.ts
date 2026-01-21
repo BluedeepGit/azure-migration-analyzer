@@ -28,10 +28,7 @@ app.post('/api/login', async (req, res) => {
         const { auth } = req.body;
         const credential = getCredential(auth);
         const subClient = new SubscriptionClient(credential);
-        
-        // FIX: Tipo esplicito any[] per evitare errore TS 'never'
         const subsList: any[] = [];
-        
         for await (const sub of subClient.subscriptions.list()) {
             subsList.push({
                 subscriptionId: sub.subscriptionId,
@@ -70,7 +67,7 @@ app.post('/api/resource-groups', async (req, res) => {
     }
 });
 
-// --- API: LIST REGIONS ---
+// --- API: LIST REGIONS (Physical Only) ---
 app.post('/api/regions', async (req, res) => {
     try {
         const { auth, subscriptionId } = req.body;
@@ -79,17 +76,18 @@ app.post('/api/regions', async (req, res) => {
         const credential = getCredential(auth);
         const client = new SubscriptionClient(credential);
         
-        // FIX CRITICO: Definizione esplicita del tipo per l'array
         const locations: { name: string; displayName: string }[] = [];
         
         for await (const loc of client.subscriptions.listLocations(subscriptionId)) {
-            locations.push({
-                name: loc.name || '', 
-                displayName: loc.displayName || loc.name || ''
-            });
+            // FIX: Filtriamo solo le regioni FISICHE. Esclude "Logical" (es. Germany Central Stage).
+            if (loc.metadata && loc.metadata.regionType === 'Physical') {
+                locations.push({
+                    name: loc.name || '', 
+                    displayName: loc.displayName || loc.name || ''
+                });
+            }
         }
         
-        // Sorting sicuro
         locations.sort((a, b) => a.displayName.localeCompare(b.displayName));
         
         res.json(locations);
@@ -106,9 +104,9 @@ async function checkRegionAvailability(credential: any, subscriptionId: string, 
     const targetClean = targetRegion.toLowerCase().replace(/ /g, '');
     const client = new ResourceManagementClient(credential, subscriptionId);
     
-    // FIX: Tipo esplicito per la mappa provider
     const providerMap: Record<string, Record<string, string[]>> = {};
     
+    // Costruiamo la mappa delle capacità per provider
     for await (const p of client.providers.list()) {
         if (!p.namespace) continue;
         const namespace = p.namespace.toLowerCase();
@@ -122,6 +120,11 @@ async function checkRegionAvailability(credential: any, subscriptionId: string, 
     }
 
     return resources.map(res => {
+        // FIX: Se la risorsa è Globale, ignoriamo il controllo regionale (è sempre disponibile)
+        if (res.location && res.location.toLowerCase() === 'global') {
+            return res;
+        }
+
         const parts = res.type.split('/');
         if (parts.length < 2) return res;
 
@@ -132,11 +135,12 @@ async function checkRegionAvailability(credential: any, subscriptionId: string, 
         
         if (supportedLocations) {
             if (!supportedLocations.includes(targetClean)) {
+                // Errore: Il provider non esiste nella region target
                 res.injectedIssue = {
                     severity: 'Blocker',
                     message: `Non disponibile in ${targetRegion}`,
-                    impact: `Risorsa non disponibile nella region target.`,
-                    workaround: `Scegliere un'altra regione.`,
+                    impact: `Il Resource Provider '${res.type}' non è supportato nella regione ${targetRegion}.`,
+                    workaround: `Selezionare una regione diversa o ridistribuire in una regione supportata.`,
                     downtimeRisk: true
                 };
             }
@@ -178,16 +182,21 @@ app.post('/api/analyze', async (req, res) => {
         const result = await client.resources({ query, subscriptions });
         let rawResources = result.data as any[];
 
+        // Check Regionale (se applicabile)
         if (selectedScenario === 'cross-region' && targetRegion) {
             rawResources = await checkRegionAvailability(credential, subscriptions[0], rawResources, targetRegion);
         }
 
+        // Analisi Regole JSON
         const analyzedResources = rawResources.map(r => {
             const analysis = analyzeResource(r, selectedScenario);
+            
+            // Se checkRegionAvailability ha iniettato un errore, lo mostriamo con priorità
             if (r.injectedIssue) {
                 analysis.issues.unshift(r.injectedIssue);
                 analysis.migrationStatus = 'Blocker';
             }
+
             return {
                 ...analysis,
                 resourceGroup: r.resourceGroup,
