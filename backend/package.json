@@ -7,13 +7,15 @@
     "build": "tsc && cp azure-move-matrix.csv dist/",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.js",
-    "test": "ts-node tests/verify-rules.ts"
+    "test:rules": "ts-node tests/verify-rules.ts",
+    "test:links": "ts-node tests/validate-links.ts"
   },
   "dependencies": {
     "@azure/arm-resourcegraph": "^4.2.0",
     "@azure/arm-resources": "^5.1.0",
     "@azure/arm-resources-subscriptions": "^2.0.0",
     "@azure/identity": "^3.2.0",
+    "axios": "^1.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
     "express": "^4.18.2"
