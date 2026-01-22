@@ -14,7 +14,7 @@ interface Resource { id: string; name: string; type: string; resourceGroup: stri
 interface Summary { total: number; blockers: number; critical: number; warnings: number; ready: number; downtimeRisks: number; }
 interface ApiResponse { scenario: MigrationScenario; summary: Summary; details: Resource[]; targetRegion?: string; }
 
-// Tipi per il Test Esteso
+// Tipi per il Test
 interface LogicFailure { row: number; resource: string; scenario: string; expected: string; got: string; }
 interface LinkFailure { file: string; ruleId: string; url: string; status: string | number; }
 interface TestResult {
@@ -53,7 +53,7 @@ function App() {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<string>('All');
   
-  // Test
+  // Test Data
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testLoading, setTestLoading] = useState(false);
 
@@ -65,8 +65,12 @@ function App() {
       const res = await axios.post('/api/login', payload);
       setAvailableSubs(res.data.subscriptions);
       if(res.data.subscriptions.length > 0) setSelectedSubs([res.data.subscriptions[0].subscriptionId]);
-      const regRes = await axios.post('/api/regions', { auth: auth.useManagedIdentity ? undefined : auth, subscriptionId: res.data.subscriptions[0].subscriptionId });
-      setAvailableRegions(regRes.data);
+      
+      // Fetch regions using first sub
+      if(res.data.subscriptions.length > 0) {
+          const regRes = await axios.post('/api/regions', { auth: auth.useManagedIdentity ? undefined : auth, subscriptionId: res.data.subscriptions[0].subscriptionId });
+          setAvailableRegions(regRes.data);
+      }
     } catch (err: any) { setError(err.response?.data?.error || err.message); } 
     finally { setIsConnecting(false); }
   };
@@ -113,7 +117,7 @@ function App() {
     finally { setTestLoading(false); }
   };
 
-  // --- UI ---
+  // --- UI HELPER ---
   const getStatusBadge = (status: string) => {
      const styles: any = { 'Blocker': 'bg-red-800 text-white', 'Critical': 'bg-red-100 text-red-800', 'Warning': 'bg-orange-100 text-orange-800', 'Info': 'bg-blue-100 text-blue-800', 'Ready': 'bg-green-100 text-green-800' };
      return <span className={`px-2 py-0.5 rounded text-xs font-bold border ${styles[status]}`}>{status}</span>;
@@ -142,20 +146,45 @@ function App() {
     })).sort((a:any, b:any) => SEVERITY_WEIGHT[b.worstStatus] - SEVERITY_WEIGHT[a.worstStatus]);
   }, [data, filterStatus, availableSubs]);
 
+  // --- RENDER ---
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans text-gray-900">
+      
+      {/* NAVBAR */}
       <div className="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
          <h1 className="font-bold text-lg text-blue-700">Azure Migration Console</h1>
+         
          <div className="flex gap-2">
-            <button onClick={() => setView('config')} className={`px-3 py-1 rounded ${view==='config'?'bg-blue-100':''}`}>Config</button>
-            <button onClick={() => setView('report')} disabled={!data} className={`px-3 py-1 rounded ${view==='report'?'bg-blue-100':''}`}>Report</button>
-            <button onClick={() => setView('test')} className={`px-3 py-1 rounded ${view==='test'?'bg-purple-100 text-purple-700':''}`}>Diagnostica</button>
+            {/* BOTTONE CONFIG */}
+            <button 
+                onClick={() => setView('config')} 
+                className={`px-4 py-2 text-sm font-medium rounded transition-colors ${view==='config' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+                Config
+            </button>
+            
+            {/* BOTTONE REPORT */}
+            <button 
+                onClick={() => setView('report')} 
+                disabled={!data} 
+                className={`px-4 py-2 text-sm font-medium rounded transition-colors ${view==='report' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 disabled:opacity-50'}`}
+            >
+                Report
+            </button>
+            
+            {/* --- FIX: BOTTONE DIAGNOSTICA AGGIUNTO QUI --- */}
+            <button 
+                onClick={() => setView('test')} 
+                className={`px-4 py-2 text-sm font-medium rounded transition-colors ${view==='test' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+                Diagnostica
+            </button>
          </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-8">
         
-        {/* --- CONFIG --- */}
+        {/* VIEW 1: CONFIG */}
         {view === 'config' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 bg-white p-5 rounded shadow-sm border">
@@ -175,7 +204,7 @@ function App() {
                 </div>
                 {scenario !== 'cross-tenant' && (
                     <div className="mb-4">
-                         <div className="flex justify-between items-end mb-2"><label className="text-sm font-bold">Resource Groups</label><button onClick={() => setSelectedRGs(availableRGs.map(r=>r.name))} className="text-xs text-blue-600">All</button></div>
+                         <div className="flex justify-between items-end mb-2"><label className="text-sm font-bold">Resource Groups</label><div className="space-x-2 text-xs"><button onClick={() => setSelectedRGs(availableRGs.map(r=>r.name))} className="text-blue-600">Select All</button> <button onClick={() => setSelectedRGs([])} className="text-red-600">Deselect All</button></div></div>
                          {loadingRGs ? <div className="text-xs italic">Loading...</div> : <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded">{availableRGs.map(rg => <label key={rg.name} className="flex gap-1 text-xs items-center"><input type="checkbox" checked={selectedRGs.includes(rg.name)} onChange={() => setSelectedRGs(prev => prev.includes(rg.name)?prev.filter(x=>x!==rg.name):[...prev, rg.name])}/> {rg.name}</label>)}</div>}
                     </div>
                 )}
@@ -185,7 +214,7 @@ function App() {
           </div>
         )}
 
-        {/* --- REPORT --- */}
+        {/* --- VIEW 2: REPORT --- */}
         {view === 'report' && data && (
             <div className="animate-fade-in space-y-6">
                 <div className="flex gap-4 overflow-x-auto pb-2">
@@ -235,51 +264,63 @@ function App() {
             </div>
         )}
 
-        {/* --- DIAGNOSTICA TEST --- */}
+        {/* --- VIEW 3: DIAGNOSTICA (TEST) --- */}
         {view === 'test' && (
-            <div className="bg-white p-6 rounded shadow">
+            <div className="bg-white p-6 rounded shadow border">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Diagnostica Completa</h2>
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-800">Diagnostica Completa</h2>
+                        <p className="text-sm text-gray-500">Verifica coerenza regole (CSV) e validità link (Docs).</p>
+                    </div>
                     <button onClick={runDiagnostics} disabled={testLoading} className="bg-purple-600 text-white px-6 py-2 rounded font-bold hover:bg-purple-700">
-                        {testLoading ? 'Analisi in corso...' : 'Avvia Test (Logica + Link)'}
+                        {testLoading ? 'Analisi in corso...' : 'Avvia Test'}
                     </button>
                 </div>
                 
                 {testResult && (
-                    <div className="space-y-6 text-left">
-                        {/* Sezione 1: Logica CSV */}
-                        <div className="border rounded p-4">
-                            <h3 className="font-bold text-lg mb-2">1. Coerenza Regole vs CSV</h3>
-                            <div className="grid grid-cols-3 gap-4 mb-4 text-center">
-                                <div className="bg-blue-50 p-2 rounded">Totale: <b>{testResult.logic.total}</b></div>
-                                <div className="bg-green-50 p-2 rounded text-green-700">Pass: <b>{testResult.logic.passed}</b></div>
-                                <div className="bg-red-50 p-2 rounded text-red-700">Fail: <b>{testResult.logic.failed}</b></div>
+                    <div className="space-y-8 text-left">
+                        {/* Sezione 1: Logic Test */}
+                        <div className="border rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
+                                <h3 className="font-bold">1. Coerenza Logica (Engine vs CSV)</h3>
+                                <div className="text-xs font-mono flex gap-3">
+                                    <span className="text-blue-600">Total: {testResult.logic.total}</span>
+                                    <span className="text-green-600">Pass: {testResult.logic.passed}</span>
+                                    <span className="text-red-600">Fail: {testResult.logic.failed}</span>
+                                </div>
                             </div>
                             {testResult.logic.failed > 0 ? (
-                                <div className="max-h-40 overflow-y-auto text-xs border bg-red-50 p-2">
-                                    {testResult.logic.failures.map((f:any, i:number) => <div key={i} className="mb-1 border-b pb-1"><b>{f.resource}</b> ({f.scenario}): Exp {f.expected} != Got {f.got}</div>)}
+                                <div className="max-h-60 overflow-y-auto bg-red-50 p-3 text-xs font-mono">
+                                    {testResult.logic.failures.map((f:any, i:number) => (
+                                        <div key={i} className="mb-2 border-b border-red-200 pb-1">
+                                            <div className="font-bold">{f.resource} <span className="text-gray-500">({f.scenario})</span></div>
+                                            <div>Expected: <span className="text-green-700">{f.expected}</span> | Got: <span className="text-red-700">{f.got}</span></div>
+                                        </div>
+                                    ))}
                                 </div>
-                            ) : <div className="text-green-600 font-bold">✅ Nessuna discrepanza trovata.</div>}
+                            ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ Nessuna discrepanza logica trovata.</div>}
                         </div>
 
                         {/* Sezione 2: Link Health */}
-                        <div className="border rounded p-4">
-                            <h3 className="font-bold text-lg mb-2">2. Integrità Link Documentazione</h3>
-                            <div className="grid grid-cols-2 gap-4 mb-4 text-center">
-                                <div className="bg-blue-50 p-2 rounded">Controllati: <b>{testResult.links.checked}</b></div>
-                                <div className="bg-red-50 p-2 rounded text-red-700">Broken (404): <b>{testResult.links.broken}</b></div>
+                        <div className="border rounded-lg overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
+                                <h3 className="font-bold">2. Integrità Link (HTTP Check)</h3>
+                                <div className="text-xs font-mono flex gap-3">
+                                    <span className="text-blue-600">Checked: {testResult.links.checked}</span>
+                                    <span className="text-red-600">Broken: {testResult.links.broken}</span>
+                                </div>
                             </div>
                             {testResult.links.broken > 0 ? (
-                                <div className="max-h-60 overflow-y-auto text-xs border bg-red-50 p-2">
+                                <div className="max-h-60 overflow-y-auto bg-red-50 p-3 text-xs font-mono">
                                     {testResult.links.details.map((l:any, i:number) => (
-                                        <div key={i} className="mb-2 border-b pb-2">
+                                        <div key={i} className="mb-2 border-b border-red-200 pb-1">
                                             <div className="font-bold text-red-700">[{l.status}] {l.ruleId}</div>
-                                            <div className="font-mono text-gray-600 truncate">{l.url}</div>
+                                            <a href={l.url} target="_blank" className="text-blue-600 hover:underline truncate block">{l.url}</a>
                                             <div className="text-gray-400">File: {l.file}</div>
                                         </div>
                                     ))}
                                 </div>
-                            ) : <div className="text-green-600 font-bold">✅ Tutti i link sono validi.</div>}
+                            ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ Tutti i link sono validi.</div>}
                         </div>
                     </div>
                 )}
