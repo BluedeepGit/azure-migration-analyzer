@@ -118,7 +118,16 @@ function App() {
     finally { setTestLoading(false); }
   };
 
-  // --- UI HELPER ---
+  // --- UI HELPER (Re-inseriti i missing handlers) ---
+  
+  const handleSubToggle = (id: string) => {
+      setSelectedSubs(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+  };
+
+  const handleRGToggle = (name: string) => {
+      setSelectedRGs(prev => prev.includes(name) ? prev.filter(r => r !== name) : [...prev, name]);
+  };
+
   const getStatusBadge = (status: string) => {
      const styles: any = { 'Blocker': 'bg-red-800 text-white', 'Critical': 'bg-red-100 text-red-800', 'Warning': 'bg-orange-100 text-orange-800', 'Info': 'bg-blue-100 text-blue-800', 'Ready': 'bg-green-100 text-green-800' };
      return <span className={`px-2 py-0.5 rounded text-xs font-bold border ${styles[status]}`}>{status}</span>;
@@ -156,15 +165,12 @@ function App() {
          <h1 className="font-bold text-lg text-blue-700">Azure Migration Console</h1>
          
          <div className="flex gap-2">
-            {/* BOTTONE CONFIG */}
             <button 
                 onClick={() => setView('config')} 
                 className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='config' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
             >
                 Config
             </button>
-            
-            {/* BOTTONE REPORT */}
             <button 
                 onClick={() => setView('report')} 
                 disabled={!data} 
@@ -172,8 +178,6 @@ function App() {
             >
                 Report
             </button>
-            
-            {/* BOTTONE DIAGNOSTICA */}
             <button 
                 onClick={() => setView('test')} 
                 className={`px-4 py-2 text-sm font-bold rounded transition-colors border-2 ${view==='test' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'text-purple-600 border-purple-100 hover:bg-purple-50'}`}
