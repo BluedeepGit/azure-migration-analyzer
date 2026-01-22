@@ -4,7 +4,7 @@
   "description": "Backend API for Azure Migration Analyzer",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc && cp azure-move-matrix.csv dist/",
+    "build": "tsc && cp azure-move-matrix.csv dist/ && cp src/*.json dist/",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.js",
     "test:rules": "ts-node tests/verify-rules.ts",
