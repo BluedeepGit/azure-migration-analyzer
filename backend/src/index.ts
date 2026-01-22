@@ -222,11 +222,17 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-app.get('/api/admin/run-test', (req, res) => {
+// --- API: DIAGNOSTICA (Aggiornata Async) ---
+app.get('/api/admin/run-test', async (req, res) => {
     try {
-        const results = runIntegrationTest();
+        console.log("Avvio Diagnostica Completa (Logic + Links)...");
+        // Nota l'await qui sotto
+        const results = await runIntegrationTest();
         res.json(results);
-    } catch (error: any) { res.status(500).json({ error: error.message }); }
+    } catch (error: any) {
+        console.error("Diagnostic Error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('*', (req, res) => {
