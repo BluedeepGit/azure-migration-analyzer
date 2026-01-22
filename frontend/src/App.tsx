@@ -14,7 +14,6 @@ interface Resource { id: string; name: string; type: string; resourceGroup: stri
 interface Summary { total: number; blockers: number; critical: number; warnings: number; ready: number; downtimeRisks: number; }
 interface ApiResponse { scenario: MigrationScenario; summary: Summary; details: Resource[]; targetRegion?: string; }
 
-// Tipi per il Test
 interface LogicFailure { row: number; resource: string; scenario: string; expected: string; got: string; }
 interface LinkFailure { file: string; ruleId: string; url: string; status: string | number; }
 interface TestResult {
@@ -48,7 +47,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // UI
+  // UI Controls
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<string>('All');
@@ -101,9 +100,8 @@ function App() {
       };
       const response = await axios.post('/api/analyze', payload);
       setData(response.data);
-      const newExpS: any = {};
-      response.data.details.forEach((r:any) => newExpS[r.subscriptionId] = true);
-      setExpandedSubs(newExpS);
+      // Espande tutto di default all'avvio
+      toggleExpandAll(true, response.data.details);
     } catch (err: any) { setError(err.response?.data?.error || err.message); setView('config'); } 
     finally { setLoading(false); }
   };
@@ -118,14 +116,23 @@ function App() {
     finally { setTestLoading(false); }
   };
 
-  // --- UI HELPER (Re-inseriti i missing handlers) ---
-  
-  const handleSubToggle = (id: string) => {
-      setSelectedSubs(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
-  };
+  // --- UI HELPER ---
+  const handleSubToggle = (id: string) => setSelectedSubs(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+  const handleRGToggle = (name: string) => setSelectedRGs(prev => prev.includes(name) ? prev.filter(r => r !== name) : [...prev, name]);
 
-  const handleRGToggle = (name: string) => {
-      setSelectedRGs(prev => prev.includes(name) ? prev.filter(r => r !== name) : [...prev, name]);
+  // Funzione per Espandere/Collassare TUTTO
+  const toggleExpandAll = (expand: boolean, resourcesSource?: Resource[]) => {
+      const resources = resourcesSource || data?.details || [];
+      const newExpSubs: Record<string, boolean> = {};
+      const newExpGroups: Record<string, boolean> = {};
+
+      resources.forEach(r => {
+          newExpSubs[r.subscriptionId] = expand;
+          newExpGroups[`${r.subscriptionId}-${r.resourceGroup}`] = expand;
+      });
+
+      setExpandedSubs(newExpSubs);
+      setExpandedGroups(newExpGroups);
   };
 
   const getStatusBadge = (status: string) => {
@@ -138,13 +145,23 @@ function App() {
     const filtered = data.details.filter(r => filterStatus === 'All' || (filterStatus === 'Downtime' ? r.issues.some(i => i.downtimeRisk) : r.migrationStatus === filterStatus));
     const tree: any = {};
     filtered.forEach(res => {
-      let subName = res.subscriptionName || availableSubs.find(s => s.subscriptionId === res.subscriptionId)?.displayName || res.subscriptionId;
+      // Logica robusta per il nome della sottoscrizione
+      let subName = res.subscriptionName;
+      if (!subName || subName === res.subscriptionId) {
+          subName = availableSubs.find(s => s.subscriptionId === res.subscriptionId)?.displayName || res.subscriptionId;
+      }
+      
       if (!tree[res.subscriptionId]) tree[res.subscriptionId] = { id: res.subscriptionId, name: subName, groups: {}, worstStatus: 'Ready' };
       const subNode = tree[res.subscriptionId];
-      if (!subNode.groups[res.resourceGroup]) subNode.groups[res.resourceGroup] = [];
-      subNode.groups[res.resourceGroup].push(res);
+      
+      // Gestione RG vuoto
+      const rgName = res.resourceGroup || "No-RG";
+      if (!subNode.groups[rgName]) subNode.groups[rgName] = [];
+      subNode.groups[rgName].push(res);
+      
       if (SEVERITY_WEIGHT[res.migrationStatus] > SEVERITY_WEIGHT[subNode.worstStatus]) subNode.worstStatus = res.migrationStatus;
     });
+
     return Object.values(tree).map((subNode:any) => ({
       ...subNode,
       groupList: Object.keys(subNode.groups).map(rgName => {
@@ -163,27 +180,10 @@ function App() {
       {/* NAVBAR */}
       <div className="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-50 shadow-sm">
          <h1 className="font-bold text-lg text-blue-700">Azure Migration Console</h1>
-         
          <div className="flex gap-2">
-            <button 
-                onClick={() => setView('config')} 
-                className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='config' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
-            >
-                Config
-            </button>
-            <button 
-                onClick={() => setView('report')} 
-                disabled={!data} 
-                className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='report' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 disabled:opacity-50'}`}
-            >
-                Report
-            </button>
-            <button 
-                onClick={() => setView('test')} 
-                className={`px-4 py-2 text-sm font-bold rounded transition-colors border-2 ${view==='test' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'text-purple-600 border-purple-100 hover:bg-purple-50'}`}
-            >
-                Diagnostica
-            </button>
+            <button onClick={() => setView('config')} className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='config' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>Config</button>
+            <button onClick={() => setView('report')} disabled={!data} className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='report' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 disabled:opacity-50'}`}>Report</button>
+            <button onClick={() => setView('test')} className={`px-4 py-2 text-sm font-bold rounded transition-colors border-2 ${view==='test' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'text-purple-600 border-purple-100 hover:bg-purple-50'}`}>Diagnostica</button>
          </div>
       </div>
 
@@ -209,7 +209,7 @@ function App() {
                 </div>
                 {scenario !== 'cross-tenant' && (
                     <div className="mb-4">
-                         <div className="flex justify-between items-end mb-2"><label className="text-sm font-bold">Resource Groups</label><div className="space-x-2 text-xs"><button onClick={() => setSelectedRGs(availableRGs.map(r=>r.name))} className="text-blue-600">Select All</button> <button onClick={() => setSelectedRGs([])} className="text-red-600">Deselect All</button></div></div>
+                         <div className="flex justify-between items-end mb-2"><label className="text-sm font-bold">Resource Groups</label><div className="space-x-2 text-xs"><button onClick={() => setSelectedRGs(availableRGs.map(r=>r.name))} className="text-blue-600 hover:underline">Select All</button> <button onClick={() => setSelectedRGs([])} className="text-red-600 hover:underline">Deselect All</button></div></div>
                          {loadingRGs ? <div className="text-xs italic">Loading...</div> : <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded">{availableRGs.map(rg => <label key={rg.name} className="flex gap-1 text-xs items-center"><input type="checkbox" checked={selectedRGs.includes(rg.name)} onChange={() => handleRGToggle(rg.name)} /> <span className="truncate" title={rg.name}>{rg.name}</span></label>)}</div>}
                     </div>
                 )}
@@ -222,122 +222,143 @@ function App() {
         {/* --- VIEW 2: REPORT --- */}
         {view === 'report' && data && (
             <div className="animate-fade-in space-y-6">
+                
+                {/* KPI BOXES */}
                 <div className="flex gap-4 overflow-x-auto pb-2">
-                  {/* KPI BOXES - FIX RENDERING 0 */}
-                  {[
-                     { label: 'Total', value: data.summary.total, color: 'blue' },
-                     { label: 'Blockers', value: data.summary.blockers, color: 'red', filter: 'Blocker' },
-                     { label: 'Critical', value: data.summary.critical, color: 'red', filter: 'Critical' },
-                     { label: 'Warnings', value: data.summary.warnings, color: 'orange', filter: 'Warning' },
-                     { label: 'Ready', value: data.summary.ready, color: 'green', filter: 'Ready' }
-                  ].map(kpi => (
-                      <div 
-                        key={kpi.label} 
-                        onClick={() => kpi.filter && setFilterStatus(kpi.filter)} 
-                        className={`bg-white p-4 rounded border-l-4 border-${kpi.color}-500 shadow-sm flex-1 cursor-pointer hover:bg-gray-50 transition-transform active:scale-95`}
-                      >
-                          <div className="text-xs text-gray-500 uppercase font-bold">{kpi.label}</div>
-                          {/* Usa String() per forzare la visualizzazione dello 0 */}
-                          <div className={`text-2xl font-bold text-${kpi.color}-700`}>
-                             {kpi.value !== undefined ? kpi.value : 0}
-                          </div>
-                      </div>
-                  ))}
-               </div>
+                    {[
+                        { label: 'Total', value: data.summary.total, color: 'blue' },
+                        { label: 'Blockers', value: data.summary.blockers, color: 'red', filter: 'Blocker' },
+                        { label: 'Critical', value: data.summary.critical, color: 'red', filter: 'Critical' },
+                        { label: 'Warnings', value: data.summary.warnings, color: 'orange', filter: 'Warning' },
+                        { label: 'Ready', value: data.summary.ready, color: 'green', filter: 'Ready' }
+                    ].map(kpi => (
+                        <div key={kpi.label} onClick={() => kpi.filter && setFilterStatus(kpi.filter)} className={`bg-white p-4 rounded border-l-4 border-${kpi.color}-500 shadow-sm flex-1 cursor-pointer hover:bg-gray-50 transition-transform active:scale-95`}>
+                            <div className="text-xs text-gray-500 uppercase font-bold">{kpi.label}</div>
+                            <div className={`text-2xl font-bold text-${kpi.color}-700`}>{kpi.value !== undefined ? kpi.value : 0}</div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* --- HEADER LISTA & CONTROLLI EXPAND --- */}
+                <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg border border-gray-200">
+                    <div className="text-sm font-bold text-gray-600">
+                        Filtro attivo: <span className="text-blue-700">{filterStatus}</span> | Scenario: {data.scenario}
+                    </div>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => toggleExpandAll(true)} 
+                            className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-50 flex items-center gap-1 shadow-sm"
+                        >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13l-7 7-7-7m14-8l-7 7-7-7" /></svg>
+                            Expand All
+                        </button>
+                        <button 
+                            onClick={() => toggleExpandAll(false)} 
+                            className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded text-xs font-bold hover:bg-gray-50 flex items-center gap-1 shadow-sm"
+                        >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 11l7-7 7 7M5 19l7-7 7 7" /></svg>
+                            Collapse All
+                        </button>
+                    </div>
+                </div>
+
+                {/* SOTTOSCRIZIONI -> RESOURCE GROUPS */}
                 {groupedData.map((sub:any) => (
                     <div key={sub.id} className="bg-white border rounded shadow-sm overflow-hidden">
-                        <div onClick={() => setExpandedSubs({...expandedSubs, [sub.id]: !expandedSubs[sub.id]})} className="bg-gray-100 p-4 flex justify-between cursor-pointer">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-yellow-100 rounded text-yellow-700">🔑</div>
-                                <div><div className="font-bold text-lg">{sub.name}</div><div className="text-xs font-mono">{sub.id}</div></div>
+                        <div onClick={() => setExpandedSubs({...expandedSubs, [sub.id]: !expandedSubs[sub.id]})} className="bg-gray-100 px-4 py-4 flex justify-between items-center cursor-pointer hover:bg-white transition-colors border-b border-gray-200">
+                            <div className="flex items-center gap-4">
+                                <div className="p-2 bg-yellow-100 rounded-lg text-yellow-700 border border-yellow-200"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg></div>
+                                <div><div className="font-bold text-gray-900 text-lg">{sub.name}</div><div className="text-xs text-gray-500 font-mono">ID: {sub.id}</div></div>
                             </div>
-                            {getStatusBadge(sub.worstStatus)}
+                            <div className="flex items-center gap-4">
+                                {getStatusBadge(sub.worstStatus)}
+                                <svg className={`w-5 h-5 text-gray-400 transition-transform ${expandedSubs[sub.id] ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
                         </div>
-                        {expandedSubs[sub.id] && <div className="p-4 space-y-4">
-                            {sub.groupList.map((rg:any) => (
-                                <div key={rg.name} className="border rounded">
-                                    <div onClick={() => setExpandedGroups(p => ({...p, [`${sub.id}-${rg.name}`]: !p[`${sub.id}-${rg.name}`]}))} className="p-3 flex justify-between cursor-pointer hover:bg-gray-50">
-                                        <div className="font-bold text-sm">RG: {rg.name}</div>
-                                        {getStatusBadge(rg.worstStatus)}
-                                    </div>
-                                    {expandedGroups[`${sub.id}-${rg.name}`] && <div className="border-t p-2">
-                                        {rg.resources.map((res:Resource) => (
-                                            <div key={res.id} className="p-3 border-b last:border-0 hover:bg-yellow-50">
-                                                <div className="flex justify-between font-bold text-sm"><div>{res.name} <span className="font-normal text-xs text-gray-500">({res.type})</span></div> {getStatusBadge(res.migrationStatus)}</div>
-                                                {res.issues.map((i, idx) => (
-                                                    <div key={idx} className="mt-2 text-sm pl-2 border-l-2 border-red-300">
-                                                        <div className="font-bold text-red-700">{i.message}</div>
-                                                        <div className="text-gray-600">{i.impact}</div>
-                                                        <div className="bg-gray-800 text-gray-200 p-2 rounded text-xs font-mono mt-1">FIX: {i.workaround}</div>
-                                                        {i.refLink && <a href={i.refLink} target="_blank" className="text-blue-600 text-xs block mt-1 hover:underline">📚 Docs</a>}
+                        
+                        {expandedSubs[sub.id] && (
+                            <div className="p-4 bg-gray-50 space-y-4">
+                                {sub.groupList.map((rg:any) => (
+                                    <div key={rg.name} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                        <div onClick={() => setExpandedGroups(p => ({...p, [`${sub.id}-${rg.name}`]: !p[`${sub.id}-${rg.name}`]}))} className="px-4 py-3 flex justify-between items-center cursor-pointer hover:bg-blue-50 transition-colors">
+                                            <div className="font-bold text-sm text-gray-700 flex items-center gap-2">
+                                                <span className="text-[10px] bg-gray-200 px-1.5 py-0.5 rounded text-gray-600 border border-gray-300">RG</span> {rg.name} <span className="text-gray-400 text-xs font-normal">({rg.resources.length})</span>
+                                            </div>
+                                            {getStatusBadge(rg.worstStatus)}
+                                        </div>
+                                        
+                                        {expandedGroups[`${sub.id}-${rg.name}`] && (
+                                            <div className="border-t border-gray-100">
+                                                {rg.resources.map((res:Resource) => (
+                                                    <div key={res.id} className="p-4 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <div className="font-bold text-gray-800">{res.name}</div>
+                                                                <div className="text-xs text-gray-500 font-mono mt-0.5">{res.type}</div>
+                                                                <div className="text-[10px] text-gray-400 mt-1">{res.location}</div>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                {getStatusBadge(res.migrationStatus)}
+                                                                {res.issues.some(i => i.downtimeRisk) && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded border border-purple-200 flex items-center gap-1"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" /></svg> Downtime</span>}
+                                                            </div>
+                                                        </div>
+                                                        {res.issues.length > 0 ? (
+                                                            <div className="space-y-3 mt-3 pl-3 border-l-4 border-red-100">
+                                                                {res.issues.map((issue, idx) => (
+                                                                    <div key={idx} className="text-sm">
+                                                                        <div className="flex items-center gap-2 text-red-700 font-bold mb-1"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> {issue.message}</div>
+                                                                        <div className="text-gray-700 mb-2">{issue.impact}</div>
+                                                                        <div className="bg-slate-800 text-slate-200 p-2.5 rounded text-xs font-mono shadow-inner"><span className="text-green-400 font-bold">$ FIX: </span>{issue.workaround}</div>
+                                                                        {issue.refLink && <a href={issue.refLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-blue-600 hover:underline"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg> Documentazione</a>}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : <div className="text-xs text-green-600 flex items-center gap-1 mt-2 bg-green-50 p-2 rounded w-fit"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Pronto per la migrazione</div>}
                                                     </div>
                                                 ))}
                                             </div>
-                                        ))}
-                                    </div>}
-                                </div>
-                            ))}
-                        </div>}
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
         )}
 
-        {/* --- VIEW 3: DIAGNOSTICA (TEST) --- */}
+        {/* --- VIEW 3: DIAGNOSTICA --- */}
         {view === 'test' && (
             <div className="bg-white p-6 rounded shadow border">
                 <div className="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-800">Diagnostica Completa</h2>
-                        <p className="text-sm text-gray-500">Verifica coerenza regole (CSV) e validità link (Docs).</p>
-                    </div>
-                    <button onClick={runDiagnostics} disabled={testLoading} className="bg-purple-600 text-white px-6 py-2 rounded font-bold hover:bg-purple-700">
-                        {testLoading ? 'Analisi in corso...' : 'Avvia Test'}
-                    </button>
+                    <h2 className="text-2xl font-bold">Diagnostica Completa</h2>
+                    <button onClick={runDiagnostics} disabled={testLoading} className="bg-purple-600 text-white px-6 py-2 rounded font-bold hover:bg-purple-700">{testLoading ? 'Analisi...' : 'Avvia Test'}</button>
                 </div>
-                
                 {testResult && (
-                    <div className="space-y-8 text-left">
+                    <div className="space-y-6 text-left">
+                        {/* Logic Check */}
                         <div className="border rounded-lg overflow-hidden">
-                            <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
-                                <h3 className="font-bold">1. Coerenza Logica (Engine vs CSV)</h3>
-                                <div className="text-xs font-mono flex gap-3">
-                                    <span className="text-blue-600">Total: {testResult.logic.total}</span>
-                                    <span className="text-green-600">Pass: {testResult.logic.passed}</span>
-                                    <span className="text-red-600">Fail: {testResult.logic.failed}</span>
-                                </div>
+                            <div className="bg-gray-50 px-4 py-3 border-b font-bold flex justify-between">
+                                <span>1. Coerenza Regole</span>
+                                <span className={`text-xs ${testResult.logic.failed > 0 ? 'text-red-600' : 'text-green-600'}`}>Failures: {testResult.logic.failed}</span>
                             </div>
                             {testResult.logic.failed > 0 ? (
                                 <div className="max-h-60 overflow-y-auto bg-red-50 p-3 text-xs font-mono">
-                                    {testResult.logic.failures.map((f:any, i:number) => (
-                                        <div key={i} className="mb-2 border-b border-red-200 pb-1">
-                                            <div className="font-bold">{f.resource} <span className="text-gray-500">({f.scenario})</span></div>
-                                            <div>Expected: <span className="text-green-700">{f.expected}</span> | Got: <span className="text-red-700">{f.got}</span></div>
-                                        </div>
-                                    ))}
+                                    {testResult.logic.failures.map((f:any, i:number) => <div key={i} className="mb-2 border-b pb-1"><b>{f.resource}</b> ({f.scenario}): Exp {f.expected} != Got {f.got}</div>)}
                                 </div>
-                            ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ Nessuna discrepanza logica trovata.</div>}
+                            ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ OK</div>}
                         </div>
-
+                        {/* Link Check */}
                         <div className="border rounded-lg overflow-hidden">
-                            <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
-                                <h3 className="font-bold">2. Integrità Link (HTTP Check)</h3>
-                                <div className="text-xs font-mono flex gap-3">
-                                    <span className="text-blue-600">Checked: {testResult.links.checked}</span>
-                                    <span className="text-red-600">Broken: {testResult.links.broken}</span>
-                                </div>
+                            <div className="bg-gray-50 px-4 py-3 border-b font-bold flex justify-between">
+                                <span>2. Validità Link</span>
+                                <span className={`text-xs ${testResult.links.broken > 0 ? 'text-red-600' : 'text-green-600'}`}>Broken: {testResult.links.broken}</span>
                             </div>
                             {testResult.links.broken > 0 ? (
                                 <div className="max-h-60 overflow-y-auto bg-red-50 p-3 text-xs font-mono">
-                                    {testResult.links.details.map((l:any, i:number) => (
-                                        <div key={i} className="mb-2 border-b border-red-200 pb-1">
-                                            <div className="font-bold text-red-700">[{l.status}] {l.ruleId}</div>
-                                            <a href={l.url} target="_blank" className="text-blue-600 hover:underline truncate block">{l.url}</a>
-                                            <div className="text-gray-400">File: {l.file}</div>
-                                        </div>
-                                    ))}
+                                    {testResult.links.details.map((l:any, i:number) => <div key={i} className="mb-2 border-b pb-1 text-red-700">[{l.status}] {l.url}</div>)}
                                 </div>
-                            ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ Tutti i link sono validi.</div>}
+                            ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ OK</div>}
                         </div>
                     </div>
                 )}
