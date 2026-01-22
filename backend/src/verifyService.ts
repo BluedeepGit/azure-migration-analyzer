@@ -3,14 +3,25 @@ import path from 'path';
 import axios from 'axios';
 import { analyzeResource } from './engine';
 
-// Importiamo i file JSON grezzi per sapere da quale file proviene una regola
-const rulesFiles = {
-    'rules.json': require('./rules.json'),
-    'rules-move.json': require('./rules-move.json'),
-    'rules-region.json': require('./rules-region.json'),
-    'rules-rg.json': require('./rules-rg.json'),
-    'rules-sub.json': require('./rules-sub.json'),
+// FIX: Usiamo import statici per garantire che TypeScript includa i JSON nel build
+import tenantRules from './rules.json';
+import rgRules from './rules-rg.json';
+import subRules from './rules-sub.json';
+import regionRules from './rules-region.json';
+// Importiamo anche rules-move.json se esiste ancora, o usiamo quelli generati.
+// Basandoci sullo script PowerShell, i file generati sono rg, sub, region.
+// rules.json è quello manuale Tenant.
+// Se hai anche rules-move.json "legacy" o generato, includilo.
+// Per sicurezza, mappiamo quelli sicuri generati dallo script PowerShell.
+
+const rulesFiles: Record<string, any[]> = {
+    'rules.json': tenantRules,
+    'rules-rg.json': rgRules,
+    'rules-sub.json': subRules,
+    'rules-region.json': regionRules
 };
+
+// Se per caso rules-move.json esiste ed è usato in index.ts, aggiungilo qui sopra allo stesso modo.
 
 export interface TestResult {
     logic: {
@@ -64,7 +75,6 @@ async function checkUrl(url: string): Promise<{ valid: boolean; status: number |
         const response = await axios.head(url, { timeout: 5000, validateStatus: (s) => s < 400 });
         return { valid: true, status: response.status };
     } catch (error: any) {
-        // Fallback su GET se HEAD fallisce
         try {
             const responseGet = await axios.get(url, { timeout: 5000 });
             return { valid: true, status: responseGet.status };
@@ -75,9 +85,9 @@ async function checkUrl(url: string): Promise<{ valid: boolean; status: number |
 }
 
 export async function runIntegrationTest(): Promise<TestResult> {
+    // CSV deve essere copiato in dist/ dallo script di build
     const csvPath = path.join(__dirname, '../azure-move-matrix.csv');
     
-    // 1. TEST LOGICO (CSV vs ENGINE)
     const logicResult = { passed: 0, failed: 0, total: 0, failures: [] as FailureDetail[] };
     
     if (fs.existsSync(csvPath)) {
@@ -117,20 +127,21 @@ export async function runIntegrationTest(): Promise<TestResult> {
         }
     }
 
-    // 2. TEST LINKS (JSON FILES)
+    // 2. TEST LINKS
     const linkResult = { checked: 0, broken: 0, details: [] as BrokenLinkDetail[] };
     const linksToCheck: { url: string, file: string, ruleId: string }[] = [];
 
-    // Raccogli tutti i link
+    // Itera sui file importati staticamente
     for (const [filename, rules] of Object.entries(rulesFiles)) {
-        (rules as any[]).forEach(r => {
-            if (r.refLink && r.refLink.startsWith('http')) {
-                linksToCheck.push({ url: r.refLink, file: filename, ruleId: r.id });
-            }
-        });
+        if (Array.isArray(rules)) {
+            rules.forEach(r => {
+                if (r.refLink && r.refLink.startsWith('http')) {
+                    linksToCheck.push({ url: r.refLink, file: filename, ruleId: r.id });
+                }
+            });
+        }
     }
 
-    // Esegui check in parallelo (concorrenza limitata a 20)
     const CHUNK_SIZE = 20;
     for (let i = 0; i < linksToCheck.length; i += CHUNK_SIZE) {
         const chunk = linksToCheck.slice(i, i + CHUNK_SIZE);
