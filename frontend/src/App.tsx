@@ -223,13 +223,27 @@ function App() {
         {view === 'report' && data && (
             <div className="animate-fade-in space-y-6">
                 <div className="flex gap-4 overflow-x-auto pb-2">
-                    {['Total', 'Blockers', 'Critical', 'Warnings', 'Ready'].map(k => (
-                        <div key={k} onClick={() => setFilterStatus(k === 'Total' ? 'All' : k.slice(0, -1))} className="bg-white p-4 rounded border shadow-sm flex-1 cursor-pointer hover:bg-gray-50">
-                            <div className="text-xs text-gray-500 uppercase font-bold">{k}</div>
-                            <div className="text-2xl font-bold">{(data.summary as any)[k.toLowerCase()] || (data.summary as any)[k.toLowerCase()+'s']}</div>
-                        </div>
-                    ))}
-                </div>
+                  {/* KPI BOXES - FIX RENDERING 0 */}
+                  {[
+                     { label: 'Total', value: data.summary.total, color: 'blue' },
+                     { label: 'Blockers', value: data.summary.blockers, color: 'red', filter: 'Blocker' },
+                     { label: 'Critical', value: data.summary.critical, color: 'red', filter: 'Critical' },
+                     { label: 'Warnings', value: data.summary.warnings, color: 'orange', filter: 'Warning' },
+                     { label: 'Ready', value: data.summary.ready, color: 'green', filter: 'Ready' }
+                  ].map(kpi => (
+                      <div 
+                        key={kpi.label} 
+                        onClick={() => kpi.filter && setFilterStatus(kpi.filter)} 
+                        className={`bg-white p-4 rounded border-l-4 border-${kpi.color}-500 shadow-sm flex-1 cursor-pointer hover:bg-gray-50 transition-transform active:scale-95`}
+                      >
+                          <div className="text-xs text-gray-500 uppercase font-bold">{kpi.label}</div>
+                          {/* Usa String() per forzare la visualizzazione dello 0 */}
+                          <div className={`text-2xl font-bold text-${kpi.color}-700`}>
+                             {kpi.value !== undefined ? kpi.value : 0}
+                          </div>
+                      </div>
+                  ))}
+               </div>
                 {groupedData.map((sub:any) => (
                     <div key={sub.id} className="bg-white border rounded shadow-sm overflow-hidden">
                         <div onClick={() => setExpandedSubs({...expandedSubs, [sub.id]: !expandedSubs[sub.id]})} className="bg-gray-100 p-4 flex justify-between cursor-pointer">

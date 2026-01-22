@@ -22,7 +22,7 @@ function getCredential(auth: any) {
     return new DefaultAzureCredential();
 }
 
-// --- API: LOGIN & SUBSCRIPTIONS ---
+// --- API: LOGIN ---
 app.post('/api/login', async (req, res) => {
     try {
         const { auth } = req.body;
@@ -67,7 +67,7 @@ app.post('/api/resource-groups', async (req, res) => {
     }
 });
 
-// --- API: LIST REGIONS (Physical Only) ---
+// --- API: LIST REGIONS ---
 app.post('/api/regions', async (req, res) => {
     try {
         const { auth, subscriptionId } = req.body;
@@ -77,9 +77,7 @@ app.post('/api/regions', async (req, res) => {
         const client = new SubscriptionClient(credential);
         
         const locations: { name: string; displayName: string }[] = [];
-        
         for await (const loc of client.subscriptions.listLocations(subscriptionId)) {
-            // FIX: Filtriamo solo le regioni FISICHE. Esclude "Logical" (es. Germany Central Stage).
             if (loc.metadata && loc.metadata.regionType === 'Physical') {
                 locations.push({
                     name: loc.name || '', 
@@ -87,31 +85,24 @@ app.post('/api/regions', async (req, res) => {
                 });
             }
         }
-        
         locations.sort((a, b) => a.displayName.localeCompare(b.displayName));
-        
         res.json(locations);
     } catch (error: any) {
-        console.error("Region Fetch Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// --- HELPER: Validazione Region Capabilities ---
+// --- HELPER: Region Check ---
 async function checkRegionAvailability(credential: any, subscriptionId: string, resources: any[], targetRegion: string) {
     if (!targetRegion) return resources;
-    
     const targetClean = targetRegion.toLowerCase().replace(/ /g, '');
     const client = new ResourceManagementClient(credential, subscriptionId);
-    
     const providerMap: Record<string, Record<string, string[]>> = {};
     
-    // Costruiamo la mappa delle capacità per provider
     for await (const p of client.providers.list()) {
         if (!p.namespace) continue;
         const namespace = p.namespace.toLowerCase();
         providerMap[namespace] = {};
-        
         p.resourceTypes?.forEach(rt => {
             if (rt.resourceType && rt.locations) {
                 providerMap[namespace][rt.resourceType.toLowerCase()] = rt.locations.map(l => l.toLowerCase().replace(/ /g, ''));
@@ -120,30 +111,21 @@ async function checkRegionAvailability(credential: any, subscriptionId: string, 
     }
 
     return resources.map(res => {
-        // FIX: Se la risorsa è Globale, ignoriamo il controllo regionale (è sempre disponibile)
-        if (res.location && res.location.toLowerCase() === 'global') {
-            return res;
-        }
-
+        if (res.location && res.location.toLowerCase() === 'global') return res;
         const parts = res.type.split('/');
         if (parts.length < 2) return res;
-
         const provider = parts[0].toLowerCase();
         const resourceType = parts.slice(1).join('/').toLowerCase();
-        
         const supportedLocations = providerMap[provider]?.[resourceType];
         
-        if (supportedLocations) {
-            if (!supportedLocations.includes(targetClean)) {
-                // Errore: Il provider non esiste nella region target
-                res.injectedIssue = {
-                    severity: 'Blocker',
-                    message: `Non disponibile in ${targetRegion}`,
-                    impact: `Il Resource Provider '${res.type}' non è supportato nella regione ${targetRegion}.`,
-                    workaround: `Selezionare una regione diversa o ridistribuire in una regione supportata.`,
-                    downtimeRisk: true
-                };
-            }
+        if (supportedLocations && !supportedLocations.includes(targetClean)) {
+            res.injectedIssue = {
+                severity: 'Blocker',
+                message: `Non disponibile in ${targetRegion}`,
+                impact: `Resource Provider non supportato nella regione target.`,
+                workaround: `Scegliere altra regione.`,
+                downtimeRisk: true
+            };
         }
         return res;
     });
@@ -162,9 +144,11 @@ app.post('/api/analyze', async (req, res) => {
         const credential = getCredential(auth);
         const client = new ResourceGraphClient(credential);
 
-        let whereClause = `where subscriptionId in ('${subscriptions.join("','")}')`;
+        // FIX: Usiamo in~ (case insensitive) per evitare di perdere risorse se il casing del RG è diverso
+        let whereClause = `where subscriptionId in~ ('${subscriptions.join("','")}')`;
+        
         if (resourceGroups && resourceGroups.length > 0) {
-            whereClause += ` | where resourceGroup in ('${resourceGroups.join("','")}')`;
+            whereClause += ` | where resourceGroup in~ ('${resourceGroups.join("','")}')`;
         }
 
         const query = `
@@ -182,21 +166,16 @@ app.post('/api/analyze', async (req, res) => {
         const result = await client.resources({ query, subscriptions });
         let rawResources = result.data as any[];
 
-        // Check Regionale (se applicabile)
         if (selectedScenario === 'cross-region' && targetRegion) {
             rawResources = await checkRegionAvailability(credential, subscriptions[0], rawResources, targetRegion);
         }
 
-        // Analisi Regole JSON
         const analyzedResources = rawResources.map(r => {
             const analysis = analyzeResource(r, selectedScenario);
-            
-            // Se checkRegionAvailability ha iniettato un errore, lo mostriamo con priorità
             if (r.injectedIssue) {
                 analysis.issues.unshift(r.injectedIssue);
                 analysis.migrationStatus = 'Blocker';
             }
-
             return {
                 ...analysis,
                 resourceGroup: r.resourceGroup,
@@ -205,6 +184,7 @@ app.post('/api/analyze', async (req, res) => {
             };
         });
 
+        // FIX: Calcolo esplicito per evitare problemi con 0/undefined nel frontend
         const summary = {
             total: analyzedResources.length,
             blockers: analyzedResources.filter(r => r.migrationStatus === 'Blocker').length,
@@ -222,17 +202,11 @@ app.post('/api/analyze', async (req, res) => {
     }
 });
 
-// --- API: DIAGNOSTICA (Aggiornata Async) ---
 app.get('/api/admin/run-test', async (req, res) => {
     try {
-        console.log("Avvio Diagnostica Completa (Logic + Links)...");
-        // Nota l'await qui sotto
         const results = await runIntegrationTest();
         res.json(results);
-    } catch (error: any) {
-        console.error("Diagnostic Error:", error);
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error: any) { res.status(500).json({ error: error.message }); }
 });
 
 app.get('*', (req, res) => {
