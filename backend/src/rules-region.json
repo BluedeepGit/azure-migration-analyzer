@@ -287,8 +287,7 @@
         "message":  "servers Region Move",
         "impact":  "Spostamento regionale non supportato nativamente.",
         "workaround":  "Necessario ridistribuire (Redeploy) la risorsa nella nuova region.",
-        "downtimeRisk":  true,
-        "refLink":  "https://learn.microsoft.com/en-us/azure/analysis-services/move-analysis-services"
+        "downtimeRisk":  true
     },
     {
         "id":  "REG-NO-MICROSOFTAPIMANAGEMENT-REPORTFEEDBACK",
@@ -329,8 +328,7 @@
         "message":  "configurationstores Region Move",
         "impact":  "Spostamento regionale non supportato nativamente.",
         "workaround":  "Necessario ridistribuire (Redeploy) la risorsa nella nuova region.",
-        "downtimeRisk":  true,
-        "refLink":  "https://learn.microsoft.com/en-us/azure/azure-app-configuration/howto-move-resources"
+        "downtimeRisk":  true
     },
     {
         "id":  "REG-NO-MICROSOFTAPPCONFIGURATION-CONFIGURATIONSTORESEVENTGRI",
@@ -553,7 +551,7 @@
         "impact":  "Spostamento regionale non supportato nativamente.",
         "workaround":  "Necessario ridistribuire (Redeploy) la risorsa nella nuova region.",
         "downtimeRisk":  true,
-        "refLink":  "https://learn.microsoft.com/en-us/azure/automation/move-account"
+        "refLink":  "https://learn.microsoft.com/en-us/azure/automation/automation-disaster-recovery?tabs=ps-script%2Coption-one"
     },
     {
         "id":  "REG-NO-MICROSOFTAUTOMATION-AUTOMATIONACCOUNTSCONFIGURATIONS",
@@ -2794,8 +2792,7 @@
         "message":  "databaseaccounts Region Move",
         "impact":  "Spostamento regionale non supportato nativamente.",
         "workaround":  "Necessario ridistribuire (Redeploy) la risorsa nella nuova region.",
-        "downtimeRisk":  true,
-        "refLink":  "https://learn.microsoft.com/en-us/azure/cosmos-db/move-account"
+        "downtimeRisk":  true
     },
     {
         "id":  "REG-NO-MICROSOFTDOCUMENTDB-MONGOCLUSTERS",
@@ -3176,8 +3173,7 @@
         "message":  "clusters Region Move",
         "impact":  "Spostamento regionale non supportato nativamente.",
         "workaround":  "Necessario ridistribuire (Redeploy) la risorsa nella nuova region.",
-        "downtimeRisk":  true,
-        "refLink":  "https://learn.microsoft.com/en-us/azure/hdinsight/hdinsight-plan-business-continuity"
+        "downtimeRisk":  true
     },
     {
         "id":  "REG-NO-MICROSOFTHEALTHCAREAPIS-SERVICES",

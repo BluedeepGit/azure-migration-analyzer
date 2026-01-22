@@ -120,7 +120,7 @@
     "impact": "Il servizio Storage Sync non supporta il cambio tenant automatico dei server registrati.",
     "workaround": "PRE-MOVE: Eliminare Server Endpoints e deregistrare i server. POST-MOVE: Ricreare Sync Groups e registrare nuovamente i server.",
     "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/storage/file-sync/file-sync-manage-storage-sync-service"
+    "refLink": "https://learn.microsoft.com/en-us/azure/storage/files/storage-files-faq#azure-file-sync"
   },
   {
     "id": "TENANT-DISK-001",
@@ -164,7 +164,7 @@
     "impact": "Questa risorsa NON può essere spostata tra tenant. È legata indissolubilmente alla directory sorgente.",
     "workaround": "Eliminare la risorsa Managed Domain. Ricrearla nel nuovo tenant (perdita dati profili utente/GPO non backuppati).",
     "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/active-directory-domain-services/manage-subscription-move"
+    "refLink": "https://learn.microsoft.com/en-us/entra/identity/domain-services/faqs"
   },
   {
     "id": "TENANT-WEB-001",
@@ -187,7 +187,7 @@
     "impact": "Le identità utente assegnate ai progetti non sono valide nel nuovo tenant.",
     "workaround": "Riassegnare i ruoli agli sviluppatori nel nuovo tenant.",
     "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/deployment-environments/how-to-move-resources"
+    "refLink": "https://learn.microsoft.com/en-us/azure/role-based-access-control/transfer-subscription"
   },
   {
     "id": "TENANT-SF-001",
@@ -231,7 +231,7 @@
     "impact": "Gli utenti non possono loggarsi (SSO rotto). Le Managed Identity usate per il mount storage si rompono.",
     "workaround": "Riconfigurare l'autenticazione Entra ID e i mount point dello storage.",
     "downtimeRisk": true,
-    "refLink": "https://learn.microsoft.com/en-us/azure/databricks/administration-guide/account-settings/azure-subscription-move"
+    "refLink": "https://learn.microsoft.com/en-us/azure/databricks/admin/account-settings/#move-workspace-between-tenants-unsupported"
   },
   {
     "id": "TENANT-GAL-001",
