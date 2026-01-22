@@ -66,10 +66,11 @@ function App() {
       setAvailableSubs(res.data.subscriptions);
       if(res.data.subscriptions.length > 0) setSelectedSubs([res.data.subscriptions[0].subscriptionId]);
       
-      // Fetch regions using first sub
       if(res.data.subscriptions.length > 0) {
-          const regRes = await axios.post('/api/regions', { auth: auth.useManagedIdentity ? undefined : auth, subscriptionId: res.data.subscriptions[0].subscriptionId });
-          setAvailableRegions(regRes.data);
+          try {
+            const regRes = await axios.post('/api/regions', { auth: auth.useManagedIdentity ? undefined : auth, subscriptionId: res.data.subscriptions[0].subscriptionId });
+            setAvailableRegions(regRes.data);
+          } catch(e) { console.error("Region fetch error", e); }
       }
     } catch (err: any) { setError(err.response?.data?.error || err.message); } 
     finally { setIsConnecting(false); }
@@ -158,7 +159,7 @@ function App() {
             {/* BOTTONE CONFIG */}
             <button 
                 onClick={() => setView('config')} 
-                className={`px-4 py-2 text-sm font-medium rounded transition-colors ${view==='config' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='config' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}
             >
                 Config
             </button>
@@ -167,15 +168,15 @@ function App() {
             <button 
                 onClick={() => setView('report')} 
                 disabled={!data} 
-                className={`px-4 py-2 text-sm font-medium rounded transition-colors ${view==='report' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 disabled:opacity-50'}`}
+                className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='report' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 disabled:opacity-50'}`}
             >
                 Report
             </button>
             
-            {/* --- FIX: BOTTONE DIAGNOSTICA AGGIUNTO QUI --- */}
+            {/* BOTTONE DIAGNOSTICA */}
             <button 
                 onClick={() => setView('test')} 
-                className={`px-4 py-2 text-sm font-medium rounded transition-colors ${view==='test' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:bg-gray-100'}`}
+                className={`px-4 py-2 text-sm font-bold rounded transition-colors border-2 ${view==='test' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'text-purple-600 border-purple-100 hover:bg-purple-50'}`}
             >
                 Diagnostica
             </button>
@@ -193,23 +194,23 @@ function App() {
                 {!auth.useManagedIdentity && <div className="space-y-2 mb-3"><input className="w-full border p-2 text-sm rounded" placeholder="Tenant ID" value={auth.tenantId} onChange={e => setAuth({...auth, tenantId: e.target.value})} /><input className="w-full border p-2 text-sm rounded" placeholder="Client ID" value={auth.clientId} onChange={e => setAuth({...auth, clientId: e.target.value})} /><input className="w-full border p-2 text-sm rounded" type="password" placeholder="Secret" value={auth.clientSecret} onChange={e => setAuth({...auth, clientSecret: e.target.value})} /></div>}
                 <button onClick={connectToAzure} disabled={isConnecting} className="w-full bg-blue-600 text-white py-2 rounded text-sm font-bold">{isConnecting ? '...' : 'Connetti'}</button>
                 {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-                {availableSubs.length > 0 && <div className="mt-4 border rounded max-h-60 overflow-y-auto">{availableSubs.map(s => <div key={s.subscriptionId} className="p-2 border-b flex items-center"><input type="checkbox" checked={selectedSubs.includes(s.subscriptionId)} onChange={() => setSelectedSubs(prev => prev.includes(s.subscriptionId) ? prev.filter(x=>x!==s.subscriptionId):[...prev,s.subscriptionId])} /><span className="ml-2 text-xs font-bold">{s.displayName}</span></div>)}</div>}
+                {availableSubs.length > 0 && <div className="mt-4 border rounded max-h-60 overflow-y-auto">{availableSubs.map(s => <div key={s.subscriptionId} className="p-2 border-b flex items-center"><input type="checkbox" checked={selectedSubs.includes(s.subscriptionId)} onChange={() => handleSubToggle(s.subscriptionId)} /><span className="ml-2 text-xs font-bold">{s.displayName}</span></div>)}</div>}
             </div>
             <div className="lg:col-span-2 bg-white p-5 rounded shadow-sm border">
                 <h2 className="font-bold mb-4">2. Scenario</h2>
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     {['cross-tenant', 'cross-subscription', 'cross-resourcegroup', 'cross-region'].map(s => (
-                        <div key={s} onClick={() => setScenario(s as any)} className={`p-4 border rounded cursor-pointer ${scenario === s ? 'border-blue-500 bg-blue-50 ring-1' : ''}`}><div className="font-bold capitalize">{s.replace('cross-', '').replace('-', ' to ')}</div></div>
+                        <div key={s} onClick={() => setScenario(s as any)} className={`p-4 border rounded cursor-pointer ${scenario === s ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'hover:border-gray-400'}`}><div className="font-bold capitalize">{s.replace('cross-', '').replace('-', ' to ')}</div></div>
                     ))}
                 </div>
                 {scenario !== 'cross-tenant' && (
                     <div className="mb-4">
                          <div className="flex justify-between items-end mb-2"><label className="text-sm font-bold">Resource Groups</label><div className="space-x-2 text-xs"><button onClick={() => setSelectedRGs(availableRGs.map(r=>r.name))} className="text-blue-600">Select All</button> <button onClick={() => setSelectedRGs([])} className="text-red-600">Deselect All</button></div></div>
-                         {loadingRGs ? <div className="text-xs italic">Loading...</div> : <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded">{availableRGs.map(rg => <label key={rg.name} className="flex gap-1 text-xs items-center"><input type="checkbox" checked={selectedRGs.includes(rg.name)} onChange={() => setSelectedRGs(prev => prev.includes(rg.name)?prev.filter(x=>x!==rg.name):[...prev, rg.name])}/> {rg.name}</label>)}</div>}
+                         {loadingRGs ? <div className="text-xs italic">Loading...</div> : <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border p-2 rounded">{availableRGs.map(rg => <label key={rg.name} className="flex gap-1 text-xs items-center"><input type="checkbox" checked={selectedRGs.includes(rg.name)} onChange={() => handleRGToggle(rg.name)} /> <span className="truncate" title={rg.name}>{rg.name}</span></label>)}</div>}
                     </div>
                 )}
-                {scenario === 'cross-region' && <div className="mb-4"><label className="text-sm font-bold">Target Region</label><select value={targetRegion} onChange={e=>setTargetRegion(e.target.value)} className="w-full border p-2 rounded"><option value="">Select</option>{availableRegions.map(r=><option key={r.name} value={r.name}>{r.displayName}</option>)}</select></div>}
-                <button onClick={runAnalysis} disabled={loading} className="w-full bg-green-600 text-white py-4 rounded font-bold">{loading ? 'Analisi...' : 'AVVIA ANALISI'}</button>
+                {scenario === 'cross-region' && <div className="mb-4"><label className="text-sm font-bold">Target Region</label><select value={targetRegion} onChange={e=>setTargetRegion(e.target.value)} className="w-full border p-2 rounded"><option value="">Select</option>{availableRegions.map(r=><option key={r.name} value={r.name}>{r.displayName} ({r.name})</option>)}</select></div>}
+                <button onClick={runAnalysis} disabled={loading || selectedSubs.length === 0} className="w-full bg-green-600 text-white py-4 rounded font-bold">{loading ? 'Analisi...' : 'AVVIA ANALISI'}</button>
             </div>
           </div>
         )}
@@ -279,7 +280,6 @@ function App() {
                 
                 {testResult && (
                     <div className="space-y-8 text-left">
-                        {/* Sezione 1: Logic Test */}
                         <div className="border rounded-lg overflow-hidden">
                             <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
                                 <h3 className="font-bold">1. Coerenza Logica (Engine vs CSV)</h3>
@@ -301,7 +301,6 @@ function App() {
                             ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ Nessuna discrepanza logica trovata.</div>}
                         </div>
 
-                        {/* Sezione 2: Link Health */}
                         <div className="border rounded-lg overflow-hidden">
                             <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
                                 <h3 className="font-bold">2. Integrità Link (HTTP Check)</h3>
