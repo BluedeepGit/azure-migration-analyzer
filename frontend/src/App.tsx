@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { pdf } from '@react-pdf/renderer'; // Import per PDF
+import { MigrationReport } from './ReportTemplate'; // Import Template PDF
 
 // --- TIPI ---
 type MigrationScenario = 'cross-tenant' | 'cross-subscription' | 'cross-resourcegroup' | 'cross-region';
@@ -52,6 +54,7 @@ function App() {
   const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false); // Stato PDF
   
   // Test Data
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -118,6 +121,22 @@ function App() {
     finally { setTestLoading(false); }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!data) return;
+    setIsGeneratingPdf(true);
+    try {
+      const blob = await pdf(<MigrationReport data={data} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Azure_Migration_Report_${new Date().toISOString().slice(0,10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) { console.error(err); alert("Errore PDF"); }
+    finally { setIsGeneratingPdf(false); }
+  };
+
   // --- UI HELPER ---
   const handleSubToggle = (id: string) => setSelectedSubs(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
   const handleRGToggle = (name: string) => setSelectedRGs(prev => prev.includes(name) ? prev.filter(r => r !== name) : [...prev, name]);
@@ -175,6 +194,14 @@ function App() {
          <div className="flex gap-2">
             <button onClick={() => setView('config')} className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='config' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>Config</button>
             <button onClick={() => setView('report')} disabled={!data} className={`px-4 py-2 text-sm font-bold rounded transition-colors ${view==='report' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 disabled:opacity-50'}`}>Report</button>
+            
+            {/* BOTTONE PDF */}
+            {data && (
+                <button onClick={handleDownloadPdf} disabled={isGeneratingPdf} className="px-4 py-2 text-sm font-bold rounded transition-colors bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 flex items-center gap-2">
+                    {isGeneratingPdf ? '...' : <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>PDF</>}
+                </button>
+            )}
+
             <button onClick={() => setView('test')} className={`px-4 py-2 text-sm font-bold rounded transition-colors border-2 ${view==='test' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'text-purple-600 border-purple-100 hover:bg-purple-50'}`}>Diagnostica</button>
          </div>
       </div>
@@ -322,7 +349,7 @@ function App() {
                             ) : <div className="p-4 text-green-600 font-bold bg-green-50">✅ Nessuna discrepanza logica trovata.</div>}
                         </div>
 
-                        {/* Sezione 2: Link Health (RIDISEGNATA PER DETTAGLI) */}
+                        {/* Sezione 2: Link Health (DETTAGLIATA) */}
                         <div className="border rounded-lg overflow-hidden border-gray-200">
                             <div className="bg-gray-50 px-4 py-3 border-b font-bold flex justify-between">
                                 <span>2. Integrità Link (HTTP Check)</span>
