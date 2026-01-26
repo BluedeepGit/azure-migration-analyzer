@@ -2644,6 +2644,16 @@
         "downtimeRisk":  true
     },
     {
+    "id": "REG-NO-MICROSOFTDEVCENTER-ALL",
+    "resourceType": "Microsoft.DevCenter/*",
+    "scenario": "cross-region",
+    "severity": "Critical",
+    "message": "Dev Center Region Move",
+    "impact": "Spostamento regionale non supportato per risorse Dev Center.",
+    "workaround": "Ricreare l'ambiente nella regione di destinazione.",
+    "downtimeRisk": true
+    },
+    {
         "id":  "REG-NO-MICROSOFTDEVICES-ELASTICPOOLS",
         "resourceType":  "Microsoft.Devices/elasticpools",
         "scenario":  "cross-region",

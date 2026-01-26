@@ -1992,6 +1992,16 @@
         "downtimeRisk":  true
     },
     {
+    "id": "BLK-DEVCENTER-ALL",
+    "resourceType": "Microsoft.DevCenter/*",
+    "scenario": "cross-subscription",
+    "severity": "Blocker",
+    "message": "Microsoft Dev Box / Dev Center",
+    "impact": "Lo spostamento di Dev Centers, Projects, Pools e Network Connections non è supportato.",
+    "workaround": "Eliminare e ricreare le risorse nella nuova sottoscrizione.",
+    "downtimeRisk": true
+    },
+    {
         "id":  "BLK-SUB-MICROSOFTDEVICES-ELASTICPOOLS",
         "resourceType":  "Microsoft.Devices/elasticpools",
         "scenario":  "cross-subscription",

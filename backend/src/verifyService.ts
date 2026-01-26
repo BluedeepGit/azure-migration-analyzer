@@ -1,18 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
-import { analyzeResource } from './engine';
+import { analyzeResource, MigrationScenario } from './engine';
 
-// FIX: Usiamo import statici per garantire che TypeScript includa i JSON nel build
+// Importiamo i file JSON grezzi per tracciare i link
 import tenantRules from './rules.json';
 import rgRules from './rules-rg.json';
 import subRules from './rules-sub.json';
 import regionRules from './rules-region.json';
-// Importiamo anche rules-move.json se esiste ancora, o usiamo quelli generati.
-// Basandoci sullo script PowerShell, i file generati sono rg, sub, region.
-// rules.json è quello manuale Tenant.
-// Se hai anche rules-move.json "legacy" o generato, includilo.
-// Per sicurezza, mappiamo quelli sicuri generati dallo script PowerShell.
 
 const rulesFiles: Record<string, any[]> = {
     'rules.json': tenantRules,
@@ -20,8 +15,6 @@ const rulesFiles: Record<string, any[]> = {
     'rules-sub.json': subRules,
     'rules-region.json': regionRules
 };
-
-// Se per caso rules-move.json esiste ed è usato in index.ts, aggiungilo qui sopra allo stesso modo.
 
 export interface TestResult {
     logic: {
@@ -60,6 +53,8 @@ function createMockResource(provider: string, type: string, conditionNotes: stri
         type: provider + '/' + type,
         resourceGroup: 'test-rg',
         location: 'westeurope',
+        subscriptionId: 'sub-123', // Necessario per il nuovo engine
+        subscriptionName: 'Test Sub',
         sku: {},
         properties: {}
     };
@@ -72,11 +67,18 @@ function createMockResource(provider: string, type: string, conditionNotes: stri
 // --- HELPER LINK CHECK ---
 async function checkUrl(url: string): Promise<{ valid: boolean; status: number | string }> {
     try {
-        const response = await axios.head(url, { timeout: 5000, validateStatus: (s) => s < 400 });
+        const response = await axios.head(url, { 
+            timeout: 5000, 
+            validateStatus: (s) => s < 400,
+            headers: { 'User-Agent': 'AzureMigrationTool/1.0' } // Evita alcuni 403 fake
+        });
         return { valid: true, status: response.status };
     } catch (error: any) {
         try {
-            const responseGet = await axios.get(url, { timeout: 5000 });
+            const responseGet = await axios.get(url, { 
+                timeout: 5000,
+                headers: { 'User-Agent': 'AzureMigrationTool/1.0' }
+            });
             return { valid: true, status: responseGet.status };
         } catch (errGet: any) {
             return { valid: false, status: errGet.response?.status || 'ERR' };
@@ -85,7 +87,6 @@ async function checkUrl(url: string): Promise<{ valid: boolean; status: number |
 }
 
 export async function runIntegrationTest(): Promise<TestResult> {
-    // CSV deve essere copiato in dist/ dallo script di build
     const csvPath = path.join(__dirname, '../azure-move-matrix.csv');
     
     const logicResult = { passed: 0, failed: 0, total: 0, failures: [] as FailureDetail[] };
@@ -100,38 +101,80 @@ export async function runIntegrationTest(): Promise<TestResult> {
 
             const provider = cols[0].trim();
             const resType = cols[1].trim();
-            const subMoveCsv = cols[3].trim();
-            const regMoveCsv = cols[4].trim();
+            
+            const rgMoveCsv = cols[2].trim();  // <--- NUOVO: Colonna RG
+            const subMoveCsv = cols[3].trim(); // Colonna Sub
+            const regMoveCsv = cols[4].trim(); // Colonna Region
 
-            // Test Sub Move
+            // ----------------------------------------------------
+            // TEST 1: Cross-ResourceGroup (AGGIUNTO ORA)
+            // ----------------------------------------------------
+            const mockRg = createMockResource(provider, resType, rgMoveCsv);
+            const resRg = analyzeResource(mockRg, 'cross-resourcegroup');
+            const expRgBlock = rgMoveCsv.toLowerCase().startsWith('no') || rgMoveCsv.toLowerCase() == 'pending';
+            
+            if (expRgBlock && resRg.migrationStatus !== 'Blocker') {
+                logicResult.failed++;
+                logicResult.failures.push({ 
+                    row: i+1, 
+                    resource: `${provider}/${resType}`, 
+                    scenario: 'ResourceGroup', 
+                    expected: 'Blocker', 
+                    got: resRg.migrationStatus 
+                });
+            } else {
+                logicResult.passed++;
+            }
+            logicResult.total++;
+
+            // ----------------------------------------------------
+            // TEST 2: Cross-Subscription
+            // ----------------------------------------------------
             const mockSub = createMockResource(provider, resType, subMoveCsv);
             const resSub = analyzeResource(mockSub, 'cross-subscription');
-            const expBlock = subMoveCsv.toLowerCase().startsWith('no') || subMoveCsv.toLowerCase() == 'pending';
+            const expSubBlock = subMoveCsv.toLowerCase().startsWith('no') || subMoveCsv.toLowerCase() == 'pending';
             
-            if (expBlock && resSub.migrationStatus !== 'Blocker') {
+            if (expSubBlock && resSub.migrationStatus !== 'Blocker') {
                 logicResult.failed++;
-                logicResult.failures.push({ row: i+1, resource: `${provider}/${resType}`, scenario: 'Sub', expected: 'Blocker', got: resSub.migrationStatus });
-            } else logicResult.passed++;
+                logicResult.failures.push({ 
+                    row: i+1, 
+                    resource: `${provider}/${resType}`, 
+                    scenario: 'Subscription', 
+                    expected: 'Blocker', 
+                    got: resSub.migrationStatus 
+                });
+            } else {
+                logicResult.passed++;
+            }
+            logicResult.total++;
 
-            // Test Region Move
+            // ----------------------------------------------------
+            // TEST 3: Cross-Region
+            // ----------------------------------------------------
             const mockReg = createMockResource(provider, resType, regMoveCsv);
             const resReg = analyzeResource(mockReg, 'cross-region');
-            const expCrit = regMoveCsv.toLowerCase().startsWith('no') || regMoveCsv.toLowerCase() == 'pending';
+            const expRegCrit = regMoveCsv.toLowerCase().startsWith('no') || regMoveCsv.toLowerCase() == 'pending';
 
-            if (expCrit && resReg.migrationStatus !== 'Critical' && resReg.migrationStatus !== 'Warning') {
+            if (expRegCrit && resReg.migrationStatus !== 'Critical' && resReg.migrationStatus !== 'Warning') {
                  logicResult.failed++;
-                 logicResult.failures.push({ row: i+1, resource: `${provider}/${resType}`, scenario: 'Region', expected: 'Critical', got: resReg.migrationStatus });
-            } else logicResult.passed++;
-
-            logicResult.total += 2;
+                 logicResult.failures.push({ 
+                     row: i+1, 
+                     resource: `${provider}/${resType}`, 
+                     scenario: 'Region', 
+                     expected: 'Critical', 
+                     got: resReg.migrationStatus 
+                 });
+            } else {
+                logicResult.passed++;
+            }
+            logicResult.total++;
         }
     }
 
-    // 2. TEST LINKS
+    // 2. TEST LINKS (JSON FILES)
     const linkResult = { checked: 0, broken: 0, details: [] as BrokenLinkDetail[] };
     const linksToCheck: { url: string, file: string, ruleId: string }[] = [];
 
-    // Itera sui file importati staticamente
     for (const [filename, rules] of Object.entries(rulesFiles)) {
         if (Array.isArray(rules)) {
             rules.forEach(r => {
@@ -142,6 +185,7 @@ export async function runIntegrationTest(): Promise<TestResult> {
         }
     }
 
+    // Concurrency Limit per non sovraccaricare
     const CHUNK_SIZE = 20;
     for (let i = 0; i < linksToCheck.length; i += CHUNK_SIZE) {
         const chunk = linksToCheck.slice(i, i + CHUNK_SIZE);

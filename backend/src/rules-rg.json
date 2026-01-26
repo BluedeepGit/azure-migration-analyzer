@@ -1971,6 +1971,16 @@
         "downtimeRisk":  true
     },
     {
+    "id": "BLK-RG-MICROSOFTDEVCENTER-ALL",
+    "resourceType": "Microsoft.DevCenter/*",
+    "scenario": "cross-resourcegroup",
+    "severity": "Blocker",
+    "message": "Dev Center RG Move",
+    "impact": "Spostamento tra Resource Group non supportato.",
+    "workaround": "Ricreare le risorse nel nuovo Resource Group.",
+    "downtimeRisk": true
+    },
+    {
         "id":  "BLK-RG-MICROSOFTDEVICES-ELASTICPOOLS",
         "resourceType":  "Microsoft.Devices/elasticpools",
         "scenario":  "cross-resourcegroup",
