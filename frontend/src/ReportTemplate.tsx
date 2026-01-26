@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 11, fontWeight: 'bold', color: '#1E3A8A' },
     
     // Action Required Items (Issues)
-    issueGroupContainer: { marginBottom: 10, break: false }, // Evita di spezzare il titolo dal primo contenuto se possibile
+    issueGroupContainer: { marginBottom: 10, break: false },
     issueGroupHeader: { 
         backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: '#DC2626',
         padding: 6, marginBottom: 0
@@ -70,13 +70,14 @@ const styles = StyleSheet.create({
     },
     tableRow: { 
         flexDirection: 'row', borderBottomWidth: 0.5, borderColor: '#E5E7EB', 
-        paddingVertical: 4, paddingHorizontal: 2, minHeight: 15 
+        paddingVertical: 6, paddingHorizontal: 4, minHeight: 15,
+        alignItems: 'flex-start' // Allinea il testo in alto se va a capo
     },
     
-    // Colonne (Larghezze fisse per evitare sovrapposizioni)
-    colRG: { width: '22%', fontSize: 8, color: '#4B5563', paddingRight: 2 },
-    colName: { width: '38%', fontSize: 8, fontWeight: 'bold', color: '#111827', paddingRight: 2 },
-    colType: { width: '25%', fontSize: 7, color: '#6B7280', paddingRight: 2 },
+    // --- COLONNE RIDIMENSIONATE (35-35-15-15) ---
+    colRG: { width: '35%', fontSize: 8, color: '#4B5563', paddingRight: 4 },
+    colName: { width: '35%', fontSize: 8, fontWeight: 'bold', color: '#111827', paddingRight: 4 },
+    colType: { width: '15%', fontSize: 7, color: '#6B7280', paddingRight: 2 },
     colLoc: { width: '15%', fontSize: 7, color: '#9CA3AF', textAlign: 'right' },
     
     // Headers Sezioni Specifiche
@@ -135,10 +136,8 @@ export const MigrationReport = ({ data }: ReportProps) => {
         });
     })();
 
-    // Componente riga tabella riutilizzabile
     const ResourceRow = ({ res }: { res: any }) => (
         <View style={styles.tableRow} wrap={false}> 
-            {/* wrap=false qui impedisce che UNA RIGA si spezzi a metà, ma permette alla lista di spezzarsi */}
             <Text style={styles.colRG}>{res.resourceGroup}</Text>
             <Text style={styles.colName}>{res.name}</Text>
             <Text style={styles.colType}>{res.type.split('/').pop()}</Text>
@@ -148,9 +147,8 @@ export const MigrationReport = ({ data }: ReportProps) => {
 
     const TableHeader = () => (
         <View style={styles.tableHeader} fixed> 
-            {/* fixed ripete l'header se la tabella va su più pagine (funziona meglio in main view) */}
             <Text style={[styles.colRG, { fontWeight: 'bold' }]}>Resource Group</Text>
-            <Text style={[styles.colName, { fontWeight: 'bold' }]}>Name</Text>
+            <Text style={[styles.colName, { fontWeight: 'bold' }]}>Resource Name</Text>
             <Text style={[styles.colType, { fontWeight: 'bold' }]}>Type</Text>
             <Text style={[styles.colLoc, { fontWeight: 'bold' }]}>Region</Text>
         </View>
@@ -191,7 +189,7 @@ export const MigrationReport = ({ data }: ReportProps) => {
                             <View>
                                 {sub.issuesArray.map((group: any, gIdx: number) => (
                                     <View key={gIdx} style={styles.issueGroupContainer}> 
-                                        {/* Box Problema + Tabella Risorse */}
+                                        {/* Box Problema */}
                                         <View style={styles.issueGroupHeader} wrap={false}>
                                             <Text style={{fontSize: 9, fontWeight: 'bold', color: getStatusColor(group.details.severity)}}>
                                                 [{group.details.severity.toUpperCase()}] {group.details.message}
@@ -203,7 +201,7 @@ export const MigrationReport = ({ data }: ReportProps) => {
                                             </View>
                                         </View>
 
-                                        {/* Tabella Risorse Affette (Questa PUÒ andare a capo) */}
+                                        {/* Tabella Risorse Affette */}
                                         <View style={styles.tableContainer}>
                                             <TableHeader />
                                             {group.affectedResources.map((res: any, rIdx: number) => (
