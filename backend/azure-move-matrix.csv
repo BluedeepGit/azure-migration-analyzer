@@ -265,6 +265,13 @@ Microsoft.DesktopVirtualization;hostpools;Yes;Yes;No;
 Microsoft.DesktopVirtualization;scalingplans;Yes;Yes;No;
 Microsoft.DesktopVirtualization;workspaces;Yes;Yes;No;
 Microsoft.DesktopVirtualization;appattachpackages;Yes;Yes;No;
+Microsoft.DevCenter;devcenters;No;No;No;
+Microsoft.DevCenter;projects;No;No;No;
+Microsoft.DevCenter;devcenters / devboxdefinitions;No;No;No;
+Microsoft.DevCenter;projects / pools;No;No;No;
+Microsoft.DevCenter;networkconnections;No;No;No;
+Microsoft.DevCenter:devcenters / catalogs;No;No;No;
+Microsoft.DevCenter:projects / devboxes;No;No;No;
 Microsoft.Devices;elasticpools;No;No;No;
 Microsoft.Devices;elasticpools / iothubtenants;No;No;No;
 Microsoft.Devices;iothubs;Yes;Yes;Yes;https://learn.microsoft.com/en-us/azure/iot-hub/iot-hub-ha-dr#cross-region-dr
