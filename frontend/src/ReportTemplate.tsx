@@ -74,11 +74,11 @@ const styles = StyleSheet.create({
         alignItems: 'flex-start' // Allinea il testo in alto se va a capo
     },
     
-    // --- COLONNE RIDIMENSIONATE (35-35-15-15) ---
-    colRG: { width: '35%', fontSize: 8, color: '#4B5563', paddingRight: 4 },
-    colName: { width: '35%', fontSize: 8, fontWeight: 'bold', color: '#111827', paddingRight: 4 },
-    colType: { width: '15%', fontSize: 7, color: '#6B7280', paddingRight: 2 },
-    colLoc: { width: '15%', fontSize: 7, color: '#9CA3AF', textAlign: 'right' },
+    // --- COLONNE RIDIMENSIONATE (40-40-10-10) ---
+    colRG: { width: '40%', fontSize: 8, color: '#4B5563', paddingRight: 4 },
+    colName: { width: '40%', fontSize: 8, fontWeight: 'bold', color: '#111827', paddingRight: 4 },
+    colType: { width: '10%', fontSize: 7, color: '#6B7280', paddingRight: 2 },
+    colLoc: { width: '10%', fontSize: 7, color: '#9CA3AF', textAlign: 'right' },
     
     // Headers Sezioni Specifiche
     readyHeader: { marginTop: 15, marginBottom: 5, padding: 5, backgroundColor: '#ECFDF5', borderLeftWidth: 3, borderLeftColor: '#059669' },
