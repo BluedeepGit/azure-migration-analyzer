@@ -27,7 +27,7 @@ interface ReportProps {
     };
 }
 
-// --- STILI PDF OTTIMIZZATI ---
+// --- STILI PDF ---
 const styles = StyleSheet.create({
     page: { 
         paddingTop: 30, paddingBottom: 40, paddingHorizontal: 30, 
@@ -45,19 +45,27 @@ const styles = StyleSheet.create({
     kpiLabel: { fontSize: 6, color: '#6B7280', textTransform: 'uppercase', marginBottom: 2 },
     kpiVal: { fontSize: 12, fontWeight: 'bold' },
     
-    // Sezioni
+    // Sezioni Sottoscrizione
     sectionHeader: { marginTop: 15, marginBottom: 8, padding: 5, backgroundColor: '#E0E7FF', borderLeftWidth: 3, borderLeftColor: '#1E40AF' },
     sectionTitle: { fontSize: 11, fontWeight: 'bold', color: '#1E3A8A' },
     
-    // Action Required Items (Issues)
-    issueGroupContainer: { marginBottom: 10, break: false },
+    // --- STILI GRUPPI (ISSUES) ---
+    // Critical/Warning
     issueGroupHeader: { 
         backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: '#DC2626',
-        padding: 6, marginBottom: 0
+        padding: 6, marginBottom: 0, marginTop: 10
     },
-    issueTitle: { fontSize: 9, fontWeight: 'bold', color: '#991B1B' },
+    // Info
+    infoGroupHeader: {
+        backgroundColor: '#EFF6FF', borderLeftWidth: 3, borderLeftColor: '#3B82F6',
+        padding: 6, marginBottom: 0, marginTop: 10
+    },
+
+    issueTitle: { fontSize: 9, fontWeight: 'bold' },
     issueMeta: { marginTop: 4, paddingLeft: 4 },
     issueText: { fontSize: 8, color: '#374151', marginBottom: 2 },
+    
+    // Box Fix/Workaround
     fixBox: { marginTop: 2, backgroundColor: '#1F2937', padding: 4, borderRadius: 2 },
     fixText: { fontSize: 7, fontFamily: 'Courier', color: '#F3F4F6' },
     
@@ -70,49 +78,39 @@ const styles = StyleSheet.create({
     },
     tableRow: { 
         flexDirection: 'row', borderBottomWidth: 0.5, borderColor: '#E5E7EB', 
-        paddingVertical: 6, paddingHorizontal: 4, minHeight: 15,
+        paddingVertical: 4, paddingHorizontal: 4, minHeight: 12,
         alignItems: 'flex-start' 
     },
     
-    // Colonne Ridimensionate
+    // Colonne
     colRG: { width: '35%', fontSize: 8, color: '#4B5563', paddingRight: 4 },
     colName: { width: '35%', fontSize: 8, fontWeight: 'bold', color: '#111827', paddingRight: 4 },
     colType: { width: '15%', fontSize: 7, color: '#6B7280', paddingRight: 2 },
     colLoc: { width: '15%', fontSize: 7, color: '#9CA3AF', textAlign: 'right' },
     
-    // Summary Box per Info/Ready (NUOVO)
-    summaryBox: {
-        marginTop: 10,
+    // Summary Box per Ready
+    readyBox: {
+        marginTop: 15,
         padding: 8,
-        backgroundColor: '#F0FDF4', // Verde chiarissimo
+        backgroundColor: '#F0FDF4', 
         borderLeftWidth: 3,
         borderLeftColor: '#059669',
         borderRadius: 2
     },
-    summaryTitle: { fontSize: 9, fontWeight: 'bold', color: '#065F46', marginBottom: 4 },
-    summaryText: { fontSize: 8, color: '#064E3B' },
-    summaryBadge: { 
-        fontSize: 7, backgroundColor: '#D1FAE5', color: '#065F46', 
-        paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, marginRight: 5 
-    },
-
-    // Badges
-    badge: {
-        fontSize: 8, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 2,
-        color: 'white', fontWeight: 'bold', textAlign: 'center', width: 60
-    },
+    readyTitle: { fontSize: 9, fontWeight: 'bold', color: '#065F46', marginBottom: 2 },
+    readyText: { fontSize: 8, color: '#064E3B' },
 
     // Footer
     pageNumber: { position: 'absolute', bottom: 15, left: 0, right: 0, textAlign: 'center', fontSize: 7, color: '#9CA3AF' }
 });
 
-const getStatusColor = (status: string) => {
-    switch (status) {
+const getSeverityColor = (severity: string) => {
+    switch (severity) {
         case 'Blocker': return '#991B1B';
         case 'Critical': return '#DC2626';
         case 'Warning': return '#D97706';
-        case 'Ready': return '#059669';
-        default: return '#2563EB';
+        case 'Info': return '#1E40AF';
+        default: return '#374151';
     }
 };
 
@@ -127,40 +125,41 @@ export const MigrationReport = ({ data }: ReportProps) => {
             if (!subs[subName]) {
                 subs[subName] = { 
                     name: subName, 
-                    issuesMap: {}, 
-                    readyCount: 0, 
-                    infoCount: 0   
+                    actionMap: {}, // Blocker/Critical/Warning
+                    infoMap: {},   // Info
+                    readyCount: 0  // Ready
                 };
             }
-            if (res.migrationStatus === 'Ready') { subs[subName].readyCount++; return; }
-            if (res.migrationStatus === 'Info') { subs[subName].infoCount++; return; }
 
+            if (res.migrationStatus === 'Ready') {
+                subs[subName].readyCount++;
+                return;
+            }
+
+            // Distribuisce le issue nelle mappe corrette
             res.issues.forEach(issue => {
                 const issueKey = issue.ruleId || issue.message;
-                if (!subs[subName].issuesMap[issueKey]) {
-                    subs[subName].issuesMap[issueKey] = { details: issue, affectedResources: [] };
+                const targetMap = issue.severity === 'Info' ? subs[subName].infoMap : subs[subName].actionMap;
+                
+                if (!targetMap[issueKey]) {
+                    targetMap[issueKey] = { details: issue, affectedResources: [] };
                 }
-                subs[subName].issuesMap[issueKey].affectedResources.push(res);
+                targetMap[issueKey].affectedResources.push(res);
             });
         });
 
         return Object.values(subs).map((sub: any) => {
-            const issuesArray = Object.values(sub.issuesMap).sort((a: any, b: any) => {
-                const weight = { 'Blocker': 4, 'Critical': 3, 'Warning': 2, 'Info': 1 };
-                return (weight[b.details.severity as keyof typeof weight] || 0) - (weight[a.details.severity as keyof typeof weight] || 0);
+            // Ordina Action Items per gravità
+            const actionItems = Object.values(sub.actionMap).sort((a: any, b: any) => {
+                const w = { 'Blocker': 3, 'Critical': 2, 'Warning': 1 };
+                return (w[b.details.severity as keyof typeof w] || 0) - (w[a.details.severity as keyof typeof w] || 0);
             });
-            return { ...sub, issuesArray };
+            // Info items
+            const infoItems = Object.values(sub.infoMap);
+            
+            return { ...sub, actionItems, infoItems };
         });
     })();
-
-    const ResourceRow = ({ res }: { res: any }) => (
-        <View style={styles.tableRow} wrap={false}> 
-            <Text style={styles.colRG}>{res.resourceGroup}</Text>
-            <Text style={styles.colName}>{res.name}</Text>
-            <Text style={styles.colType}>{res.type.split('/').pop()}</Text>
-            <Text style={styles.colLoc}>{res.location}</Text>
-        </View>
-    );
 
     const TableHeader = () => (
         <View style={styles.tableHeader} fixed> 
@@ -169,6 +168,19 @@ export const MigrationReport = ({ data }: ReportProps) => {
             <Text style={[styles.colType, { fontWeight: 'bold' }]}>Type</Text>
             <Text style={[styles.colLoc, { fontWeight: 'bold' }]}>Region</Text>
         </View>
+    );
+
+    const ResourceRows = ({ resources }: { resources: any[] }) => (
+        <>
+            {resources.map((res: any, idx: number) => (
+                <View key={idx} style={styles.tableRow} wrap={false}>
+                    <Text style={styles.colRG}>{res.resourceGroup}</Text>
+                    <Text style={styles.colName}>{res.name}</Text>
+                    <Text style={styles.colType}>{res.type.split('/').pop()}</Text>
+                    <Text style={styles.colLoc}>{res.location}</Text>
+                </View>
+            ))}
+        </>
     );
 
     return (
@@ -194,64 +206,78 @@ export const MigrationReport = ({ data }: ReportProps) => {
                     <View style={styles.kpiItem}><Text style={styles.kpiLabel}>Ready</Text><Text style={{...styles.kpiVal, color: '#059669'}}>{data.summary.ready}</Text></View>
                 </View>
 
-                {/* LOOP SOTTOSCRIZIONI */}
+                {/* LOOP SUBSCRIPTIONS */}
                 {transformedData.map((sub: any, idx) => (
-                    <View key={idx}>
-                        <View style={styles.sectionHeader} break={idx > 0}>
+                    <View key={idx} break={idx > 0}>
+                        <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>SUBSCRIPTION: {sub.name}</Text>
                         </View>
 
-                        {/* 1. ACTION REQUIRED ITEMS (Blocker/Critical/Warning) */}
-                        {sub.issuesArray.length > 0 ? (
+                        {/* 1. ACTION REQUIRED ITEMS */}
+                        {sub.actionItems.length > 0 ? (
                             <View>
-                                {sub.issuesArray.map((group: any, gIdx: number) => (
-                                    <View key={gIdx} style={styles.issueGroupContainer}> 
-                                        {/* Box Problema */}
-                                        <View style={styles.issueGroupHeader} wrap={false}>
-                                            <Text style={{fontSize: 9, fontWeight: 'bold', color: getStatusColor(group.details.severity)}}>
+                                <Text style={{fontSize: 9, fontWeight: 'bold', color: '#B91C1C', marginBottom: 4, marginTop: 4}}>⚠️ ATTENTION REQUIRED</Text>
+                                {sub.actionItems.map((group: any, gIdx: number) => (
+                                    <View key={gIdx} style={{marginBottom: 10}} wrap={false}> 
+                                        <View style={styles.issueGroupHeader}>
+                                            <Text style={{fontSize: 9, fontWeight: 'bold', color: getSeverityColor(group.details.severity)}}>
                                                 [{group.details.severity.toUpperCase()}] {group.details.message}
                                             </Text>
                                             <View style={styles.issueMeta}>
                                                 <Text style={styles.issueText}>IMPACT: {group.details.impact}</Text>
-                                                <View style={styles.fixBox}><Text style={styles.fixText}>FIX: {group.details.workaround}</Text></View>
+                                                {group.details.workaround && (
+                                                    <View style={styles.fixBox}><Text style={styles.fixText}>FIX: {group.details.workaround}</Text></View>
+                                                )}
                                                 {group.details.refLink && <Link src={group.details.refLink} style={{fontSize: 7, color: '#2563EB', marginTop: 2}}>Documentation Link</Link>}
                                             </View>
                                         </View>
-
-                                        {/* Tabella Risorse Affette */}
                                         <View style={styles.tableContainer}>
                                             <TableHeader />
-                                            {group.affectedResources.map((res: any, rIdx: number) => (
-                                                <ResourceRow key={rIdx} res={res} />
-                                            ))}
+                                            <ResourceRows resources={group.affectedResources} />
                                         </View>
                                     </View>
                                 ))}
                             </View>
                         ) : (
-                            <Text style={{fontSize: 9, color: '#059669', marginBottom: 10, fontStyle:'italic'}}>
-                                No blockers or critical issues found in this subscription.
-                            </Text>
+                            <Text style={{fontSize: 9, color: '#059669', marginBottom: 10, fontStyle:'italic'}}>No blockers or warnings found.</Text>
                         )}
 
-                        {/* 2. SUMMARY (Ready/Info) - NO LISTA DETTAGLIATA */}
-                        {(sub.readyCount > 0 || sub.infoCount > 0) && (
-                            <View style={styles.summaryBox} wrap={false}>
-                                <Text style={styles.summaryTitle}>✓ Migration Readiness Summary</Text>
-                                <View style={{flexDirection: 'row', marginBottom: 4}}>
-                                    {sub.readyCount > 0 && (
-                                        <Text style={styles.summaryBadge}>{sub.readyCount} Resources Ready</Text>
-                                    )}
-                                    {sub.infoCount > 0 && (
-                                        <Text style={{...styles.summaryBadge, backgroundColor: '#DBEAFE', color: '#1E40AF'}}>{sub.infoCount} Informational Items</Text>
-                                    )}
-                                </View>
-                                <Text style={styles.summaryText}>
-                                    The resources counted above have been analyzed and show no blocking issues for the selected migration scenario. 
-                                    They can be included in the migration plan with standard procedures.
+                        {/* 2. INFORMATIONAL ITEMS (SEPARATI, con DETTAGLI) */}
+                        {sub.infoItems.length > 0 && (
+                            <View style={{marginTop: 10}} break={sub.actionItems.length > 5}>
+                                <Text style={{fontSize: 9, fontWeight: 'bold', color: '#1E40AF', marginBottom: 4}}>ℹ️ INFORMATIONAL ITEMS</Text>
+                                {sub.infoItems.map((group: any, gIdx: number) => (
+                                    <View key={gIdx} style={{marginBottom: 10}} wrap={false}>
+                                        <View style={styles.infoGroupHeader}>
+                                            <Text style={{fontSize: 9, fontWeight: 'bold', color: '#1E40AF'}}>
+                                                [INFO] {group.details.message}
+                                            </Text>
+                                            <View style={styles.issueMeta}>
+                                                <Text style={styles.issueText}>{group.details.impact}</Text>
+                                                {/* Mostra link anche per info se presente */}
+                                                {group.details.refLink && <Link src={group.details.refLink} style={{fontSize: 7, color: '#2563EB'}}>Reference Link</Link>}
+                                            </View>
+                                        </View>
+                                        <View style={styles.tableContainer}>
+                                            <TableHeader />
+                                            <ResourceRows resources={group.affectedResources} />
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+
+                        {/* 3. READY ITEMS (SOLO RIEPILOGO) */}
+                        {sub.readyCount > 0 && (
+                            <View style={styles.readyBox} wrap={false}>
+                                <Text style={styles.readyTitle}>✓ {sub.readyCount} Resources Ready to Migrate</Text>
+                                <Text style={styles.readyText}>
+                                    These resources have passed all validation checks for the selected scenario. 
+                                    They do not require specific remediation actions.
                                 </Text>
                             </View>
                         )}
+
                     </View>
                 ))}
 
