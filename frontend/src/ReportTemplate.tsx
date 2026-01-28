@@ -71,19 +71,36 @@ const styles = StyleSheet.create({
     tableRow: { 
         flexDirection: 'row', borderBottomWidth: 0.5, borderColor: '#E5E7EB', 
         paddingVertical: 6, paddingHorizontal: 4, minHeight: 15,
-        alignItems: 'flex-start' // Allinea il testo in alto se va a capo
+        alignItems: 'flex-start' 
     },
     
-    // --- COLONNE RIDIMENSIONATE (40-40-10-10) ---
-    colRG: { width: '40%', fontSize: 8, color: '#4B5563', paddingRight: 4 },
-    colName: { width: '40%', fontSize: 8, fontWeight: 'bold', color: '#111827', paddingRight: 4 },
-    colType: { width: '10%', fontSize: 7, color: '#6B7280', paddingRight: 2 },
-    colLoc: { width: '10%', fontSize: 7, color: '#9CA3AF', textAlign: 'right' },
+    // Colonne Ridimensionate
+    colRG: { width: '35%', fontSize: 8, color: '#4B5563', paddingRight: 4 },
+    colName: { width: '35%', fontSize: 8, fontWeight: 'bold', color: '#111827', paddingRight: 4 },
+    colType: { width: '15%', fontSize: 7, color: '#6B7280', paddingRight: 2 },
+    colLoc: { width: '15%', fontSize: 7, color: '#9CA3AF', textAlign: 'right' },
     
-    // Headers Sezioni Specifiche
-    readyHeader: { marginTop: 15, marginBottom: 5, padding: 5, backgroundColor: '#ECFDF5', borderLeftWidth: 3, borderLeftColor: '#059669' },
-    infoHeader: { marginTop: 15, marginBottom: 5, padding: 5, backgroundColor: '#F3F4F6', borderLeftWidth: 3, borderLeftColor: '#6B7280' },
-    sectionLabel: { fontSize: 10, fontWeight: 'bold' },
+    // Summary Box per Info/Ready (NUOVO)
+    summaryBox: {
+        marginTop: 10,
+        padding: 8,
+        backgroundColor: '#F0FDF4', // Verde chiarissimo
+        borderLeftWidth: 3,
+        borderLeftColor: '#059669',
+        borderRadius: 2
+    },
+    summaryTitle: { fontSize: 9, fontWeight: 'bold', color: '#065F46', marginBottom: 4 },
+    summaryText: { fontSize: 8, color: '#064E3B' },
+    summaryBadge: { 
+        fontSize: 7, backgroundColor: '#D1FAE5', color: '#065F46', 
+        paddingHorizontal: 4, paddingVertical: 2, borderRadius: 3, marginRight: 5 
+    },
+
+    // Badges
+    badge: {
+        fontSize: 8, paddingVertical: 2, paddingHorizontal: 6, borderRadius: 2,
+        color: 'white', fontWeight: 'bold', textAlign: 'center', width: 60
+    },
 
     // Footer
     pageNumber: { position: 'absolute', bottom: 15, left: 0, right: 0, textAlign: 'center', fontSize: 7, color: '#9CA3AF' }
@@ -111,12 +128,12 @@ export const MigrationReport = ({ data }: ReportProps) => {
                 subs[subName] = { 
                     name: subName, 
                     issuesMap: {}, 
-                    readyList: [], 
-                    infoList: []   
+                    readyCount: 0, 
+                    infoCount: 0   
                 };
             }
-            if (res.migrationStatus === 'Ready') { subs[subName].readyList.push(res); return; }
-            if (res.migrationStatus === 'Info') { subs[subName].infoList.push(res); return; }
+            if (res.migrationStatus === 'Ready') { subs[subName].readyCount++; return; }
+            if (res.migrationStatus === 'Info') { subs[subName].infoCount++; return; }
 
             res.issues.forEach(issue => {
                 const issueKey = issue.ruleId || issue.message;
@@ -211,34 +228,30 @@ export const MigrationReport = ({ data }: ReportProps) => {
                                     </View>
                                 ))}
                             </View>
-                        ) : null}
-
-                        {/* 2. INFORMATIONAL ITEMS */}
-                        {sub.infoList.length > 0 && (
-                            <View style={{marginTop: 10}}>
-                                <View style={styles.infoHeader} wrap={false}>
-                                    <Text style={{...styles.sectionLabel, color: '#374151'}}>ℹ️ Informational Items ({sub.infoList.length})</Text>
-                                </View>
-                                <TableHeader />
-                                {sub.infoList.map((res: any, rIdx: number) => (
-                                    <ResourceRow key={rIdx} res={res} />
-                                ))}
-                            </View>
+                        ) : (
+                            <Text style={{fontSize: 9, color: '#059669', marginBottom: 10, fontStyle:'italic'}}>
+                                No blockers or critical issues found in this subscription.
+                            </Text>
                         )}
 
-                        {/* 3. READY ITEMS */}
-                        {sub.readyList.length > 0 && (
-                            <View style={{marginTop: 10}}>
-                                <View style={styles.readyHeader} wrap={false}>
-                                    <Text style={{...styles.sectionLabel, color: '#065F46'}}>✅ Ready to Migrate ({sub.readyList.length})</Text>
+                        {/* 2. SUMMARY (Ready/Info) - NO LISTA DETTAGLIATA */}
+                        {(sub.readyCount > 0 || sub.infoCount > 0) && (
+                            <View style={styles.summaryBox} wrap={false}>
+                                <Text style={styles.summaryTitle}>✓ Migration Readiness Summary</Text>
+                                <View style={{flexDirection: 'row', marginBottom: 4}}>
+                                    {sub.readyCount > 0 && (
+                                        <Text style={styles.summaryBadge}>{sub.readyCount} Resources Ready</Text>
+                                    )}
+                                    {sub.infoCount > 0 && (
+                                        <Text style={{...styles.summaryBadge, backgroundColor: '#DBEAFE', color: '#1E40AF'}}>{sub.infoCount} Informational Items</Text>
+                                    )}
                                 </View>
-                                <TableHeader />
-                                {sub.readyList.map((res: any, rIdx: number) => (
-                                    <ResourceRow key={rIdx} res={res} />
-                                ))}
+                                <Text style={styles.summaryText}>
+                                    The resources counted above have been analyzed and show no blocking issues for the selected migration scenario. 
+                                    They can be included in the migration plan with standard procedures.
+                                </Text>
                             </View>
                         )}
-
                     </View>
                 ))}
 
